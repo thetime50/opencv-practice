@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 gridH,gridW = 3,3
-def gridSet(h,w):#plt风格
+def setGrid(h,w):#plt风格
     global gridH,gridW
     gridH,gridW = h,w
 
