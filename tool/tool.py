@@ -1,9 +1,12 @@
 import matplotlib.pyplot as plt
 
-# todo
+gridH,gridW = 3,3
+def gridSet(h,w):#plt风格
+    global gridH,gridW
+    gridH,gridW = h,w
+
 def grid(x,y):#plt风格
-    h,w=3,3
-    return h,w,(x-1)*w+y
+    return gridH,gridW,(x-1)*gridW+y
 
 def pltGrid(x,y):
     plt.subplot(*grid(x,y))
