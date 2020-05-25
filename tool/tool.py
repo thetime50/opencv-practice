@@ -5,11 +5,14 @@ def setGrid(h,w):#plt风格
     global gridH,gridW
     gridH,gridW = h,w
 
-def grid(x,y):#plt风格
-    return gridH,gridW,(x-1)*gridW+y
+# def grid(x,y):#plt风格
+#     return gridH,gridW,(x-1)*gridW+y
 
-def pltGrid(x,y):
-    plt.subplot(*grid(x,y))
+# def pltGrid(x,y):
+#     plt.subplot(*grid(x,y))
+
+def pltGrid(x,y,colspan=1,rowspan=1):
+    plt.subplot2grid((gridH,gridW),(y-1,x-1),colspan=colspan,rowspan=rowspan)
 
 
 def put_list(li,width = 3):
