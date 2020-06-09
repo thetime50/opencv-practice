@@ -5,3 +5,5 @@ __pycache__/
 /tempdoc/saveDir1.avi
 /tempdoc/haarcascade_*.xml
 /doc/YiConfig/wifi/wpa_supplicant.conf
+
+/Ping-*.txt
