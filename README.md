@@ -7,3 +7,8 @@ tool:
 - [numpy](https://numpy.org/devdocs/reference/index.html)
 
 ## TOC
+
+
+## info
+
+![pose.gif](./doc/pose.gif)
