@@ -205,6 +205,7 @@ def mainProcess(imgIntQ):
     # producer = Producer(rtmp_str,init=init,ring=ring)  # 开个线程
     producer = Producer(rtmp_str,'load',init=init,ring=ring)  # 开个线程
     producer.start()
+    print("mpend")
 
 
 def fcProcess(imgIntQ,imgPutQ):
@@ -214,33 +215,32 @@ def fcProcess(imgIntQ,imgPutQ):
     fc.load(file)
     while True:
         image = imgIntQ.get()
-        imgPutQ.put(fc.solvePnP(image))
+        imgPutQ.put(fc.solvePnP(image.img))
 
 def putProcess(imgPutQ):
     while True:
         iw = imgPutQ.get()
-        cv.imshow('pnp',iw.img)
+        cv.imshow('pnp',iw)#.img)
 
 if __name__ == '__main__':
     print('run program')
     imgIntQ = Queue()
     imgPutQ = Queue()
     mp = Process(target=mainProcess, args=(imgIntQ,))
-    # mp = Process(target=mainProcess, args=(imgIntQ,))
-    # fp = Process(target=fcProcess, args=(imgIntQ,imgPutQ))
-    # pp = Process(target=putProcess, args=(imgPutQ,))
+    fp = Process(target=fcProcess, args=(imgIntQ,imgPutQ))
+    pp = Process(target=putProcess, args=(imgPutQ,))
 
     mp.start()
-    # fp.start()
-    # pp.start()
+    fp.start()
+    pp.start()
 
 
     mp.join()
     print(444)
-    # fp.close()
-    # pp.close()
-    # fp.join()
-    # pp.join()
+    fp.close()
+    pp.close()
+    fp.join()
+    pp.join()
 
     cv.destroyAllWindows()
     print("all end.....")
