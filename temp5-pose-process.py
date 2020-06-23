@@ -226,8 +226,10 @@ def fcProcess(para):
 def putProcess(imgPutQ):
     while True:
         iw = imgPutQ.get()
-        # print("pp",iw)
-        cv.imshow('pnp',iw.img)#.img)
+        print("pp",iw.img)
+        cv.imshow('pnp',iw.img)
+        # im = np.full((30,30,3),200,np.uint8)
+        # cv.imshow('pnp',im)
 
 if __name__ == '__main__':
     print('run program')
@@ -236,38 +238,53 @@ if __name__ == '__main__':
     imgIntQ = Manager().Queue()
     imgPutQ = Manager().Queue()
     
+#################################################################
+    # mp = Process(target=mainProcess, args=(imgIntQ,))
+    # fp = Process(target=fcProcess, args=((imgIntQ,imgPutQ)))
+    # pp = Process(target=putProcess, args=(imgPutQ,))
+
+    # mp.start()
+    # fp.start()
+    # pp.start()
+
+
+    # mp.join()
+    # print("mp exit")
+
+    # # fp.close()
+    # fp.terminate()# 强制退出
+    # fp.join()
+    # print("fp exit")
+
+    # # pp.close()
+    # pp.terminate()# 强制退出
+    # pp.join()
+    # print("pp exit")
+    
+
+#####################################
+
     mp = Process(target=mainProcess, args=(imgIntQ,))
-    # fp = Process(target=fcProcess, args=(imgIntQ,imgPutQ))
+    pp = Process(target=putProcess, args=(imgPutQ,))
+    mp.start()
+    pp.start()
 
     poolcnt = 3
     fpo = Pool(poolcnt)
     fpo.map(fcProcess, [(imgIntQ,imgPutQ)]*poolcnt)
 
-    pp = Process(target=putProcess, args=(imgPutQ,))
-
-    mp.start()
-    # fp.start()
-    pp.start()
-
-
     mp.join()
     print("mp exit")
 
-    # fp.close()
-    # fp.terminate()# 强制退出
-    # fp.join()
-    # print("fp exit")
-
-    fpo.close()
+    # fpo.close()
     fpo.terminate()
     fpo.join()
     print("fpo exit")
 
-    pp.close()
+    # pp.close()
     pp.terminate()# 强制退出
     pp.join()
     print("pp exit")
-    
 
     cv.destroyAllWindows()
     print("all end.....")
