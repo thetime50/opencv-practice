@@ -15,7 +15,7 @@ print(True)
 
 
 import threading
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue,Pool,Manager
 
 class DummyThread:
     def __init__(self):
@@ -28,6 +28,7 @@ class DummyThread:
 class Producer(DummyThread):
     """docstring for Producer"""
     def __init__(self, rtmp_str,state='none',apiPreference =cv.CAP_ANY,init=None,ring=None):
+        print("Producer __init__")
         super(Producer, self).__init__()
         self.rtmp_str = rtmp_str
         # 通过cv中的类获取视频流操作对象cap
@@ -52,7 +53,8 @@ class Producer(DummyThread):
         if(init):
             init(self)
     def run(self):
-        print('in producer')
+        print("Producer run")
+        # print('in producer')
         try:
             ret, image = self.cap.read()
             while ret:
@@ -78,6 +80,7 @@ class Producer(DummyThread):
             print('end')
     #         self.outVideo.release()
             self.cap.release()
+            del self.cap
             cv.destroyAllWindows()
         
 
@@ -208,39 +211,63 @@ def mainProcess(imgIntQ):
     print("mpend")
 
 
-def fcProcess(imgIntQ,imgPutQ):
+def fcProcess(para):
+    (imgIntQ,imgPutQ) = para
     fc =None
     fc=FindCorners((7,7))
     file = "./doc/temp3-calibrate-2020-06-16 214523.npz"
     fc.load(file)
     while True:
         image = imgIntQ.get()
-        imgPutQ.put(fc.solvePnP(image.img))
+        # print('fp',image)
+        fc.solvePnP(image.img)
+        imgPutQ.put(image)
 
 def putProcess(imgPutQ):
     while True:
         iw = imgPutQ.get()
-        cv.imshow('pnp',iw)#.img)
+        # print("pp",iw)
+        cv.imshow('pnp',iw.img)#.img)
 
 if __name__ == '__main__':
     print('run program')
-    imgIntQ = Queue()
-    imgPutQ = Queue()
+    # imgIntQ = Queue()
+    # imgPutQ = Queue()
+    imgIntQ = Manager().Queue()
+    imgPutQ = Manager().Queue()
+    
     mp = Process(target=mainProcess, args=(imgIntQ,))
-    fp = Process(target=fcProcess, args=(imgIntQ,imgPutQ))
+    # fp = Process(target=fcProcess, args=(imgIntQ,imgPutQ))
+
+    poolcnt = 3
+    fpo = Pool(poolcnt)
+    fpo.map(fcProcess, [(imgIntQ,imgPutQ)]*poolcnt)
+
     pp = Process(target=putProcess, args=(imgPutQ,))
 
     mp.start()
-    fp.start()
+    # fp.start()
     pp.start()
 
 
     mp.join()
-    print(444)
-    fp.close()
+    print("mp exit")
+
+    # fp.close()
+    # fp.terminate()# 强制退出
+    # fp.join()
+    # print("fp exit")
+
+    fpo.close()
+    fpo.terminate()
+    fpo.join()
+    print("fpo exit")
+
     pp.close()
-    fp.join()
+    pp.terminate()# 强制退出
     pp.join()
+    print("pp exit")
+    
 
     cv.destroyAllWindows()
     print("all end.....")
