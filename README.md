@@ -11,4 +11,4 @@ tool:
 
 ## info
 
-![pose.gif](./doc/pose.gif)
+![pose.gif](./doc/pose1.gif)
