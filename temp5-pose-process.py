@@ -192,8 +192,11 @@ class FindCorners():
             print("corners flase",end="\n")
            
 class ImgWrap:
+    cnt = 0
     def __init__(self,img):
         self.timestamp = time.time()
+        self.serial=ImgWrap.cnt
+        ImgWrap.cnt+=1
         self.img = img
 
 def mainProcess(imgIntQ):
@@ -218,18 +221,50 @@ def fcProcess(para):
     file = "./doc/temp3-calibrate-2020-06-16 214523.npz"
     fc.load(file)
     while True:
-        image = imgIntQ.get()
+        try:
+            image = imgIntQ.get(timeout=300)
+            if(image is None):
+                print("fc queue is None")
+                # break
+        except Exception as error:#,Argument
+            print("****************************",error)
+            # break
         # print('fp',image)
         fc.solvePnP(image.img)
         imgPutQ.put(image)
 
 def putProcess(imgPutQ):
+    buff = []
+    buffSize = 5
+    before = 0
     while True:
-        iw = imgPutQ.get()
-        print("pp",iw.img)
-        cv.imshow('pnp',iw.img)
+        try:
+            iw = imgPutQ.get(timeout=300)
+            if(iw is None):
+                print("pp queue is None")
+                break
+        except Exception as error:#,Argument
+            print("****************************",error)
+            break
+        # print(iw)
+        # print("pp",iw.img.shape)
+        # [3,4,5,6]
+        if(len(buff)==0):
+            buff.append(iw)
+        else:
+            for i in range(len(buff)):
+                index = len(buff)-i-1
+                if(iw.serial >= buff[index].serial):
+                    buff.insert(index+1,iw)
+                    break
+        if (buff[0].serial <= before+1) or len(buff)>=buffSize:
+            shim = buff.pop(0)
+            before = shim.serial
+            cv.imshow('pnp',shim.img)
+            cv.waitKey(10)
         # im = np.full((30,30,3),200,np.uint8)
         # cv.imshow('pnp',im)
+    cv.destroyAllWindows()
 
 if __name__ == '__main__':
     print('run program')
@@ -269,20 +304,23 @@ if __name__ == '__main__':
     mp.start()
     pp.start()
 
-    poolcnt = 3
+    poolcnt = 5
     fpo = Pool(poolcnt)
     fpo.map(fcProcess, [(imgIntQ,imgPutQ)]*poolcnt)
 
     mp.join()
     print("mp exit")
 
+    imgIntQ.close()
+    imgPutQ.close()
+
     # fpo.close()
-    fpo.terminate()
+    # fpo.terminate()
     fpo.join()
     print("fpo exit")
 
     # pp.close()
-    pp.terminate()# 强制退出
+    # pp.terminate()# 强制退出
     pp.join()
     print("pp exit")
 
@@ -290,4 +328,8 @@ if __name__ == '__main__':
     print("all end.....")
 
     
-# close()跟terminate()的区别在于close()会等待池中的worker进程执行结束再关闭pool,而terminate()则是直接关闭
+# close()跟terminate()的区别在于close()会等待池中的worker进程执行结束再关闭pool,而terminate()
+'''
+Process Pool执行顺序问题
+queue.get timeout 问题
+'''
