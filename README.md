@@ -12,3 +12,7 @@ tool:
 ## info
 
 ![pose.gif](./doc/pose1.gif)
+
+## 环境
+conda create --name tensorflow-cv imutils tensorflow opencv pandas numpy ipykernel  
+tf-cv.yml  
