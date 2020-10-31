@@ -14,7 +14,8 @@ tool:
 ![pose.gif](./doc/pose1.gif)
 
 ## 环境
-conda create --name tf-cv imutils tensorflow opencv pandas numpy ipykernel  
+conda create --name tf-cv imutils tensorflow opencv pandas numpy matplotlib ipykernel  
 tf-cv.yml  
 
-conda install --name tf-cv py-sudoku   
+conda install --name tf-cv scikit-learn  
+pip install py-sudoku  
