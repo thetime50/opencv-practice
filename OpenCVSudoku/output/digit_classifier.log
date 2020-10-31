@@ -1,0 +1,50 @@
+[INFO] accessing MNIST...
+tls trainLabels:  [5 0 4 ... 5 6 8] [0 0 0 0 0 1 0 0 0 0]
+[INFO] compiling model...
+WARNING:tensorflow:From e:\ProgramData\Anaconda3\envs\tf-cv\lib\site-packages\tensorflow\python\ops\init_ops.py:1251: calling VarianceScaling.__init__ (from tensorflow.python.ops.init_ops) with dtype is deprecated and will be removed in a future version.        
+Instructions for updating:
+Call initializer instance with the dtype argument instead of passing it to the constructor
+[INFO] training network...
+Train on 60000 samples, validate on 10000 samples
+2020-10-31 23:47:09.539496: I tensorflow/core/platform/cpu_feature_guard.cc:142] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2w binary was not compiled to use: AVX2
+Epoch 1/10
+60000/60000 [==============================] - 162s 3ms/sample - loss: 0.6654 - acc: 0.7778 - val_loss: 0.0756 - val_acc: 0.9769   
+Epoch 2/10
+60000/60000 [==============================] - 151s 3ms/sample - loss: 0.2353 - acc: 0.9330 - val_loss: 0.0545 - val_acc: 0.9821   
+Epoch 3/10
+60000/60000 [==============================] - 124s 2ms/sample - loss: 0.1706 - acc: 0.9501 - val_loss: 0.0373 - val_acc: 0.9900   
+Epoch 4/10
+60000/60000 [==============================] - 145s 2ms/sample - loss: 0.1358 - acc: 0.9615 - val_loss: 0.0382 - val_acc: 0.9891   
+Epoch 5/10
+60000/60000 [==============================] - 112s 2ms/sample - loss: 0.1187 - acc: 0.9659 - val_loss: 0.0350 - val_acc: 0.9906   
+Epoch 6/10
+60000/60000 [==============================] - 106s 2ms/sample - loss: 0.1037 - acc: 0.9710 - val_loss: 0.0322 - val_acc: 0.9904   
+Epoch 7/10
+60000/60000 [==============================] - 113s 2ms/sample - loss: 0.0962 - acc: 0.9724 - val_loss: 0.0311 - val_acc: 0.9906   
+Epoch 8/10
+60000/60000 [==============================] - 118s 2ms/sample - loss: 0.0901 - acc: 0.9748 - val_loss: 0.0316 - val_acc: 0.9911   
+Epoch 9/10
+60000/60000 [==============================] - 127s 2ms/sample - loss: 0.0836 - acc: 0.9756 - val_loss: 0.0297 - val_acc: 0.9917
+Epoch 10/10
+60000/60000 [==============================] - 118s 2ms/sample - loss: 0.0746 - acc: 0.9780 - val_loss: 0.0283 - val_acc: 0.9926
+[INFO] evaluating network...
+argmax:  [7 2 1 ... 4 5 6] [7 2 1 ... 4 5 6]
+              precision    recall  f1-score   support
+
+           0       0.99      1.00      1.00       980
+           1       0.99      0.99      0.99      1135
+           2       0.99      1.00      0.99      1032
+           3       0.99      1.00      0.99      1010
+           4       1.00      0.99      0.99       982
+           5       0.99      0.99      0.99       892
+           6       1.00      0.99      0.99       958
+           7       0.99      0.99      0.99      1028
+           8       0.99      0.99      0.99       974
+           9       0.99      0.99      0.99      1009
+
+    accuracy                           0.99     10000
+   macro avg       0.99      0.99      0.99     10000
+weighted avg       0.99      0.99      0.99     10000
+
+[INFO] serializing digit model...
+**END**
