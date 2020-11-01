@@ -2,6 +2,8 @@ import cv2 as cv
 import numpy as np
 import os
 import time
+from tensorflow.keras.models import load_model
+from solve_sudoku_puzzle import solve_sudoku
 
 CAMERA_RUL = 'rtsp://admin:admin@192.168.1.148:8554/live'  # ip摄像头 #帧率不太对
 
@@ -74,118 +76,42 @@ class Producer(DummyThread):
     #         self.outVideo.release()
             self.cap.release()
             cv.destroyAllWindows()
+
+model = None
+
+def init(pd):
+    global model
+    model = load_model("output/digit_classifier.h5")
+
+def ring(state,key,image):
+    global model
+    # print(state, key, end="\r")
+    if type(image) == type(None):
+        return state,image
         
+    image = cv.resize(image,(image.shape[1]//2,image.shape[0]//2))
+    if(state=="run"):
+        try:
+            solve_result = solve_sudoku(model,image)
+            puzzle = solve_result["puzzle"]
+            solution = solve_result["solution"]
+            cellLocs = solve_result["cellLocs"]
+            puzzleImage = solve_result["puzzleImage"]
+            puzzleCnt = solve_result["puzzleCnt"]
+            print(puzzleCnt)
+            
+            # image.
+            cv.drawContours(image, [puzzleCnt], -1, (0,255,0), 2)
+        except Exception as error:#,Argument
+            pass
+            # print("****************************",error)
+    return state,image
 
-class FindCorners():
-    def __init__(self,shape):
-        self.findCnt= 0
-        self.objpoints=[]
-        self.imgpoints=[]
-        self.lastCornersRet = False
-        self.lastCorners = None
-        self.shape = shape
-        self.objp = np.zeros((self.shape[0]*self.shape[1],3), np.float32)
-        self.objp[:,:2] = np.mgrid[0:self.shape[0],0:self.shape[1]].T.reshape(-1,2)
-        self.criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-        self.imgShape = None
-        
-        self.ret, self.mtx, self.dist, self.rvecs, self.tvecs = 0,None,None,None,None,
-        self.newcameramtx, self.roi = None,None
-    def load(self,file):
-        load = np.load(file)
-        # print(dir(load),load.files)
-
-        self.ret = load['arr_0']
-        self.mtx = load['arr_1']
-        self.dist = load['arr_2']
-        self.rvecs = load['arr_3']
-        self.tvecs = load['arr_4']
-        self.newcameramtx = load['arr_5']
-        self.roi = load['arr_6']
-        print("loaded file from",file,'\n', self.ret,'\n',self.newcameramtx,self.roi)
-    def save(self,file=''):
-        if(not file):
-            file = './doc/temp3-calibrate-'+time.strftime("%Y-%m-%d %H%M%S", time.localtime())
-        np.savez(file,
-            self.ret, self.mtx, self.dist, self.rvecs, self.tvecs,
-            self.newcameramtx, self.roi)
-        print('saved para to',file)
-    def find(self,img):
-        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-        self.imgShape= gray.shape[::-1]
-        self.lastCornersRet, self.lastCorners = cv.findChessboardCorners(gray, self.shape, None)
-        self.findCnt+=1
-        if(self.lastCornersRet):
-            self.objpoints.append(self.objp)
-            corners2 = cv.cornerSubPix(gray,self.lastCorners, (11,11), (-1,-1), self.criteria)
-            self.imgpoints.append(corners2)
-        print("state: find:%d finded:%d fail:%d"%(self.findCnt,len(self.imgpoints),self.findCnt-len(self.imgpoints)),
-            end='\r\r\r')
-        return self.lastCornersRet, self.lastCorners
-        # cv.drawChessboardCorners(det, self.shape, corners2, ret)
-        # cv.imshow('finded', det)
-    def drawChessboardCornersLast(self,img):
-#         if(self.lastCornersRet):
-        cv.drawChessboardCorners(img, self.shape, self.lastCorners,  self.lastCornersRet)
-
-    def calibrate(self):
-        if(len(self.imgpoints)):
-            self.ret, self.mtx, self.dist, self.rvecs, self.tvecs = \
-                cv.calibrateCamera(self.objpoints, self.imgpoints, self.imgShape, None, None)
-            self.newcameramtx, self.roi = \
-                cv.getOptimalNewCameraMatrix(self.mtx, self.dist, self.shape, 1,self.shape)
-        else:
-            self.ret, self.mtx, self.dist, self.rvecs, self.tvecs = 0,None,None,None,None,
-            self.newcameramtx, self.roi = None,None
-        return self.ret,self.newcameramtx, self.roi
-    def undistort(self,img):
-        # print(self.roi, self.roi and self.roi[2] , self.roi and self.roi[3])
-        if(self.roi.any() and self.roi[2] and self.roi[3]):
-            return cv.undistort(img, self.mtx, self.dist, None, self.newcameramtx)
-        else:
-            return np.full_like(img,180)
-
-    def draw(self, img, corners, imgpts):
-        corner = tuple(corners[0].ravel())
-        img = cv.line(img, corner, tuple(imgpts[0].ravel()), (255,0,0), 5)
-        img = cv.line(img, corner, tuple(imgpts[1].ravel()), (0,255,0), 5)
-        img = cv.line(img, corner, tuple(imgpts[2].ravel()), (0,0,255), 5)
-        return img
-    def drawCube(self, img, corners, imgpts):
-        imgpts = np.int32(imgpts).reshape(-1,2)
-        # draw ground floor in green
-        img = cv.drawContours(img, [imgpts[:4]],-1,(0,255,0),-3)
-        # draw pillars in blue color
-        for i,j in zip(range(4),range(4,8)):
-            img = cv.line(img, tuple(imgpts[i]), tuple(imgpts[j]),(255),3)
-        # draw top layer in red color
-        img = cv.drawContours(img, [imgpts[4:]],-1,(0,0,255),3)
-        return img
-    def solvePnP(self,img):
-        gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
-        ret, corners = cv.findChessboardCorners(gray,self.shape,None)#(6,7)
-        if ret == True:
-            axis = np.float32([[3,0,0], [0,3,0], [0,0,-3]]).reshape(-1,3)
-            criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-            corners2 = cv.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)#self.criteria)
-            # print("****",corners2.reshape((len(corners2),2)))
-            # Find the rotation and translation vectors.
-            # print("*****",self.objp, corners2, self.mtx, self.dist)
-            print("*****",self.objp.shape, corners2.shape, self.mtx.shape, self.dist.shape)
-            ret,rvecs, tvecs = cv.solvePnP(self.objp, corners2, self.mtx, self.dist)
-            # ret,rvecs, tvecs = cv.solvePnPRansac(self.objp, corners2, self.mtx, self.dist)
-            # project 3D points to image plane
-            imgpts, jac = cv.projectPoints(axis, rvecs, tvecs, self.mtx, self.dist)
-            img = self.draw(img,corners2,imgpts)
-            print(img.shape)
-            cv.imshow('pnp',img)
-        else:
-            print("corners flase",end="\n")
            
 
 if __name__ == '__main__':
     print('run program')
     rtmp_str = CAMERA_RUL
     # producer = Producer(rtmp_str,init=init,ring=ring)  # 开个线程
-    producer = Producer(rtmp_str,'load')  # 开个线程
+    producer = Producer(rtmp_str,'run',init=init,ring=ring)  # 开个线程
     producer.start()
