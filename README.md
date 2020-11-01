@@ -19,3 +19,16 @@ tf-cv.yml
 
 conda install --name tf-cv scikit-learn  
 pip install py-sudoku  
+
+
+## conda 更新
+```cmd
+conda update anaconda-navigator
+y
+conda update anaconda-client
+y
+conda update -f anaconda-client
+y
+conda update navigator-updater
+y
+```

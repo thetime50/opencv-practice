@@ -3,6 +3,8 @@
 https://www.pyimagesearch.com/2020/08/10/opencv-sudoku-solver-and-ocr/
 
 ## Sudokunet.py
+[file->](.\pyimagesearch\models\SudokuNet.py)
+
 - keras.layers.Conv2D
 
 https://keras.io/api/layers/convolution_layers/convolution2d/  
@@ -46,6 +48,7 @@ https://keras.io/zh/layers/core/#dropout
 
 
 ## train_digit_classifier.py
+[file->](.\rain_digit_classifier.py)
 
 ```python
 ap = argparse.ArgumentParser()
@@ -89,3 +92,8 @@ https://blog.csdn.net/weixin_42137700/article/details/84302045
 
 ```
 https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
+
+
+## puzzle.py
+[file->](.\pyimagesearch\Sudoku\puzzle.py)
+

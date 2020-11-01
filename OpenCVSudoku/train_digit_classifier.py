@@ -2,6 +2,8 @@
 # script will train a digit OCR model on the MNIST dataset.
 # 训练 MNIST OCR 模型
 
+# python train_digit_classifier.py --model output/digit_classifier.h5
+
 from pyimagesearch.models import SudokuNet
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.datasets import mnist
@@ -41,7 +43,7 @@ print("tls trainLabels: ",tls , trainLabels[0])
 
 print("[INFO] compiling model...")
 opt = Adam(lr = INIT_LR) # https://keras.io/zh/optimizers/#adam
-model = SudokuNet.SudokuNet.build(width=28, height=28, depth=1, classes=10)
+model = SudokuNet.build(width=28, height=28, depth=1, classes=10)
 model.compile(loss="categorical_crossentropy", # 编译模型 # 损失函数用分类交叉熵
     optimizer=opt, # 优化器
     metrics=["accuracy"])#训练结束后显示的评估数据
@@ -71,4 +73,3 @@ model.save(args["model"], save_format="h5") # 模型保存为参数指定的文�
 
 print('**END**')
 
-# python train_digit_classifier.py --model output/digit_classifier.h5
