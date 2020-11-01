@@ -97,3 +97,15 @@ https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification
 ## puzzle.py
 [file->](.\pyimagesearch\Sudoku\puzzle.py)
 
+```python
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    blurred = cv2.GaussianBlur(gray,(7,7),3) # 高斯模糊
+
+    thresh = cv2.adaptiveThreshold(blurred,255, # 自动阈值
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)# 高斯权重
+    thresh = cv2.bitwise_not(thresh)
+```
+https://docs.opencv.org/3.4/d7/d1b/group__imgproc__misc.html#ga72b913f352e4a1b1b397736707afcde3
+
+
+https://github.com/jrosebr1/imutils/blob/master/imutils/convenience.py

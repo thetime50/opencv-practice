@@ -1,3 +1,5 @@
 {
-    "python.analysis.cacheFolderPath": "E:\\ProgramData\\Anaconda3\\envs\\tf-cv"
+    "python.analysis.cacheFolderPath": "E:\\ProgramData\\Anaconda3\\envs\\tf-cv",
+    "python.pythonPath": "e:\\ProgramData\\Anaconda3\\envs\\tf-cv\\python.exe",
+    // "python.terminal.activateEnvironment": false
 }

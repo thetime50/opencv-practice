@@ -17,7 +17,7 @@ tool:
 conda create --name tf-cv imutils tensorflow opencv pandas numpy matplotlib ipykernel  
 tf-cv.yml  
 
-conda install --name tf-cv scikit-learn  
+conda install --name tf-cv scikit-learn scikit-image  
 pip install py-sudoku  
 
 
