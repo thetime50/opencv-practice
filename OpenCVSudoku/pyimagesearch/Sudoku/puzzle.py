@@ -23,10 +23,10 @@ def find_puzzle(image, debug=False):
     cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, # 外部轮廓
         cv2.CHAIN_APPROX_SIMPLE) # 保存顶点
     cnts = imutils.grab_contours(cnts)
-    cnts = sorted(cnts, key=cv2.contourArea, reverse=True) # 用面积反序排序
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True) # 用面积反序排序(从大到小)
 
     puzzleCnt = None
-    for c in cnts:
+    for c in cnts: # 从大到小查找4边形轮廓
         peri = cv2.arcLength(c,True) # 轮廓长度
         approx = cv2.approxPolyDP(c, 0.02 * peri, True) # 多边形拟合
         if len(approx == 4):
@@ -43,11 +43,8 @@ def find_puzzle(image, debug=False):
         cv2.imshow("Puzzle Outline",output)
         cv2.waitKey(0)
 
-    # apply a four point perspective transform to both the original
-    # image and grayscale image to obtain a top-down bird's eye view
-    # of the puzzle
-    puzzle = four_point_transform(image, puzzleCnt.reshape(4, 2))# 透视修正后和灰度图
-    warped = four_point_transform(gray, puzzleCnt.reshape(4, 2))# 透视修正后的彩图
+    puzzle = four_point_transform(image, puzzleCnt.reshape(4, 2))# 透视修正后的彩图
+    warped = four_point_transform(gray, puzzleCnt.reshape(4, 2))# 透视修正后的灰度图
     # check to see if we are visualizing the perspective transform
     if debug:
         # show the output warped image (again, for debugging purposes)
@@ -56,41 +53,32 @@ def find_puzzle(image, debug=False):
     # return a 2-tuple of puzzle in both RGB and grayscale
     return (puzzle, warped)
 
-# 提取单元格内数字
+# 分辨过滤出数字单元格
 def extract_digit(cell, debug=False):
-    # apply automatic thresholding to the cell and then clear any
-    # connected borders that touch the border of the cell
     thresh = cv2.threshold(cell, 0, 255, # 自动阈值
                         cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1] # 二进制 大津算法 # 返回 阈值,图像
     thresh = clear_border(thresh) # 清除边框
-    # check to see if we are visualizing the cell thresholding step
+    
     if debug:
         cv2.imshow("Cell Thresh", thresh)
         cv2.waitKey(0)
     
-    # find contours in the thresholded cell
     cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_SIMPLE)
-    cnts = imutils.grab_contours(cnts)
-    # if no contours were found than this is an empty cell
+    cnts = imutils.grab_contours(cnts) # 兼容cv版本处理findContours的返回结果
     if len(cnts) == 0:
         return None
-    # otherwise, find the largest contour in the cell and create a
-    # mask for the contour
-    c = max(cnts, key=cv2.contourArea)
+    
+    c = max(cnts, key=cv2.contourArea) # 获取面积最大的轮廓
     mask = np.zeros(thresh.shape, dtype="uint8")
     cv2.drawContours(mask, [c], -1, 255, -1)
 
-    # compute the percentage of masked pixels relative to the total
-    # area of the image
     (h, w) = thresh.shape
-    percentFilled = cv2.countNonZero(mask) / float(w * h)
-    # if less than 3% of the mask is filled then we are looking at
-    # noise and can safely ignore the contour
+    percentFilled = cv2.countNonZero(mask) / float(w * h) # 轮廓占单元格的比例
     if percentFilled < 0.03:
         return None
     # apply the mask to the thresholded cell
-    digit = cv2.bitwise_and(thresh, thresh, mask=mask)
+    digit = cv2.bitwise_and(thresh, thresh, mask=mask) # 用最大的轮廓做一次蒙版 数字笔画是一体的 避免干扰
     # check to see if we should visualize the masking step
     if debug:
         cv2.imshow("Digit", digit)
