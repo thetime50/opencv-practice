@@ -51,7 +51,11 @@ def find_puzzle(image, debug=False):
         cv2.imshow("Puzzle Transform", puzzle)
         cv2.waitKey(0)
     # return a 2-tuple of puzzle in both RGB and grayscale
-    return (puzzle, warped)
+    return {
+        "puzzle":puzzle,
+        "warped":warped,
+        "puzzleCnt":puzzleCnt,#题目轮廓
+    }
 
 # 分辨过滤出数字单元格
 def extract_digit(cell, debug=False):

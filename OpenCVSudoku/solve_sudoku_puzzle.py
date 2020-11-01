@@ -19,10 +19,13 @@ import imutils
 import cv2
 
 
-def solve_sudoku(model,image,debug):
+def solve_sudoku(model, image, debug=False):
 
     # find the puzzle in the image and then
-    (puzzleImage, warped) = find_puzzle(image, debug=debug)
+    fp_result = find_puzzle(image, debug=debug)
+    puzzleImage = fp_result["puzzle"]
+    warped = fp_result["warped"]
+    puzzleCnt = fp_result["puzzleCnt"]
     # initialize our 9x9 Sudoku board
     board = np.zeros((9, 9), dtype="int") # 9x9 数独矩阵
 
@@ -63,7 +66,8 @@ def solve_sudoku(model,image,debug):
         "puzzle" : puzzle,
         "solution" : solution,
         "cellLocs" : cellLocs,
-        "puzzleImage" : puzzleImage
+        "puzzleImage" : puzzleImage,
+        "puzzleCnt" : puzzleCnt,
     }
 
 
@@ -94,7 +98,7 @@ if __name__ == "__main__":
     solution =solve_result["solution"] 
     cellLocs =solve_result["cellLocs"] 
     puzzleImage =solve_result["puzzleImage"] 
-    
+
     puzzle.show()
     solution.show_full()
 
