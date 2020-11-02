@@ -58,6 +58,7 @@ class Producer(DummyThread):
                 
                 wait = int(1000 / int(self.fps))
                 wait = max(min(wait,300),20)
+                wait = 2
                 key = cv.waitKey(wait)  # 延迟
                 if key & 0xFF ==27:#  == ord('q'):#
                     print('break')

@@ -29,7 +29,9 @@ def find_puzzle(image, debug=False):
     for c in cnts: # 从大到小查找4边形轮廓
         peri = cv2.arcLength(c,True) # 轮廓长度
         approx = cv2.approxPolyDP(c, 0.02 * peri, True) # 多边形拟合
-        if len(approx == 4):
+        approxArea = cv2.contourArea(approx)
+        squareArea = (peri/4)**2
+        if len(approx == 4) and approxArea > squareArea*0.6: # 顶点检查 面积检查
             puzzleCnt = approx
             break
     
