@@ -70,6 +70,22 @@ def solve_sudoku(model, image, debug=False):
         "puzzleCnt" : puzzleCnt,
     }
 
+def draw_sudoku_solution(image,cells,solution,puzzle = None):
+    # loop over the cell locations and board
+    for (cellRow, boardRow) in zip(cells, solution.board):
+        # loop over individual cell in the row
+        for (box, digit) in zip(cellRow, boardRow):
+            # unpack the cell coordinates
+            startX, startY, endX, endY = box
+            # compute the coordinates of where the digit will be drawn
+            # on the output puzzle image
+            textX = int((endX - startX) * 0.33)
+            textY = int((endY - startY) * -0.2)
+            textX += startX
+            textY += endY
+            # draw the result digit on the Sudoku puzzle image
+            cv2.putText(image, str(digit), (textX, textY),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
 
 if __name__ == "__main__":
     
@@ -102,21 +118,8 @@ if __name__ == "__main__":
     puzzle.show()
     solution.show_full()
 
-    # loop over the cell locations and board
-    for (cellRow, boardRow) in zip(cellLocs, solution.board):
-        # loop over individual cell in the row
-        for (box, digit) in zip(cellRow, boardRow):
-            # unpack the cell coordinates
-            startX, startY, endX, endY = box
-            # compute the coordinates of where the digit will be drawn
-            # on the output puzzle image
-            textX = int((endX - startX) * 0.33)
-            textY = int((endY - startY) * -0.2)
-            textX += startX
-            textY += endY
-            # draw the result digit on the Sudoku puzzle image
-            cv2.putText(puzzleImage, str(digit), (textX, textY),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+    draw_sudoku_solution(puzzleImage,cellLocs,solution,puzzle)
+
     # show the output image
     cv2.imshow("Sudoku Result", puzzleImage)
     cv2.waitKey(0)

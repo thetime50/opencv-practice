@@ -1,10 +1,11 @@
-import cv2 as cv
+import cv2
 import numpy as np
 import os
 import time
 from RTSCapture import RTSCapture
 from tensorflow.keras.models import load_model
 from solve_sudoku_puzzle import solve_sudoku
+from solve_sudoku_puzzle import draw_sudoku_solution
 
 CAMERA_RUL = 'rtsp://admin:admin@192.168.1.148:8554/live'  # ip摄像头 #帧率不太对
 MODEL_PATH = "output/digit_classifier.h5"
@@ -21,12 +22,29 @@ def producer(state,key,image):
             puzzle = solve_result["puzzle"]
             solution = solve_result["solution"]
             cellLocs = solve_result["cellLocs"]
-            puzzleImage = solve_result["puzzleImage"]
-            puzzleCnt = solve_result["puzzleCnt"]
-            print(puzzleCnt)
+            puzzleImage = solve_result["puzzleImage"] # 校正后的谜题图片
+            puzzleCnt = solve_result["puzzleCnt"] # 原图的谜题框
+
+            cv2.drawContours(image, [puzzleCnt], -1, (0,255,0), 2)
             
-            # image.
-            cv.drawContours(image, [puzzleCnt], -1, (0,255,0), 2)
+            puzzleDrawings = np.zeros_like(puzzleImage)
+            draw_sudoku_solution(puzzleDrawings,cellLocs,solution,puzzle)
+
+            heightImg = puzzleImage.shape[0]
+            widthImg = puzzleImage.shape[1]
+            pts1 = np.float32([ # 原图的谜题框
+                [puzzleCnt[0][0]],
+                [puzzleCnt[3][0]],
+                [puzzleCnt[1][0]],
+                [puzzleCnt[2][0]],
+            ])
+            pts2 = np.float32([[0, 0],[widthImg, 0], [0, heightImg],[widthImg, heightImg]]) # 校正后的谜题框
+            rectangle2src = cv2.getPerspectiveTransform(pts2, pts1) # INVERSE TRANSFORMATION MATRIX
+            imgInvWarp = cv2.warpPerspective(puzzleDrawings, rectangle2src, (widthImg, heightImg)) # INV IMAGE WARP
+            print(8)
+            
+            image = cv2.addWeighted(image, 1, imgInvWarp, 1,0)
+
         except Exception as error:#,Argument
             print("***error***",error)
             pass
@@ -47,7 +65,7 @@ if __name__ == '__main__':
         while rtscap.isStarted():
 
             wait = 3
-            key = cv.waitKey(wait)  # 延迟
+            key = cv2.waitKey(wait)  # 延迟
             if key & 0xFF ==27:#  == ord('q'):#
                 print('break')
                 break
@@ -56,11 +74,11 @@ if __name__ == '__main__':
             state,image = producer(state,key,image)
             if not ret:
                 continue
-            cv.imshow('dis', image)
+            cv2.imshow('dis', image)
     # except Exception as e:
     #     print("error",repr(e))
     finally:
         print('end')
         rtscap.stop_read()
         rtscap.release()
-        cv.destroyAllWindows()
+        cv2.destroyAllWindows()
