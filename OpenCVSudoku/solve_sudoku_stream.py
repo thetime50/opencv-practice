@@ -1,3 +1,5 @@
+# 一个清空的视频流处理模板 还没加应用
+
 import cv2 as cv
 import numpy as np
 import os
