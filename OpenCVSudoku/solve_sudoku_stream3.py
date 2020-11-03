@@ -25,8 +25,11 @@ def producer(state,key,image):
             puzzleImage = solve_result["puzzleImage"] # 校正后的谜题图片
             puzzleCnt = solve_result["puzzleCnt"] # 原图的谜题框
 
+            puzzle.show()
+            solution.show_full()
+
             cv2.drawContours(image, [puzzleCnt], -1, (0,255,0), 2)
-            
+
             puzzleDrawings = np.zeros_like(puzzleImage)
             draw_sudoku_solution(puzzleDrawings,cellLocs,solution,puzzle)
 
