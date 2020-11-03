@@ -38,13 +38,26 @@ def find_puzzle(image, debug=False):
     if puzzleCnt is None:
         raise Exception(("Could not find Sudoku pussle outline."
             "Try debugging Your thresholding and contour steps."))
+    
+    cntSort = np.zeros_like(puzzleCnt)
+    cntSum = np.copy(puzzleCnt).sum(2)
+    cntSort[0] = puzzleCnt[np.argmin(cntSum)] # [0,0]
+    cntSort[2] = puzzleCnt[np.argmax(cntSum)]  # [w,h]
+    diff = np.diff(puzzleCnt)
+    cntSort[1] =puzzleCnt[np.argmin(diff)]  #[w,0] # (y<x)
+    cntSort[3] = puzzleCnt[np.argmax(diff)] #[0,h] # (y>x)
+
+    puzzleCnt = cntSort
 
     if debug:
         output = image.copy()
         cv2.drawContours(output, [puzzleCnt], -1, (0,255,0), 2)
+        for index,point in enumerate(puzzleCnt):
+            cv2.putText(output, str(index),tuple(point[0]),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+
         cv2.imshow("Puzzle Outline",output)
         cv2.waitKey(0)
-
     puzzle = four_point_transform(image, puzzleCnt.reshape(4, 2))# 透视修正后的彩图
     warped = four_point_transform(gray, puzzleCnt.reshape(4, 2))# 透视修正后的灰度图
     # check to see if we are visualizing the perspective transform

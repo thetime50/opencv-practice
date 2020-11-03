@@ -30,19 +30,20 @@ def producer(state,key,image):
             puzzleDrawings = np.zeros_like(puzzleImage)
             draw_sudoku_solution(puzzleDrawings,cellLocs,solution,puzzle)
 
-            heightImg = puzzleImage.shape[0]
+            heightImg = puzzleImage.shape[0] # 这个定义不对
             widthImg = puzzleImage.shape[1]
             pts1 = np.float32([ # 原图的谜题框
                 [puzzleCnt[0][0]],
-                [puzzleCnt[3][0]],
                 [puzzleCnt[1][0]],
+                [puzzleCnt[3][0]],
                 [puzzleCnt[2][0]],
             ])
             pts2 = np.float32([[0, 0],[widthImg, 0], [0, heightImg],[widthImg, heightImg]]) # 校正后的谜题框
+            # print(pts1,"\n",pts2)
+            # zeros_like
             rectangle2src = cv2.getPerspectiveTransform(pts2, pts1) # INVERSE TRANSFORMATION MATRIX
-            imgInvWarp = cv2.warpPerspective(puzzleDrawings, rectangle2src, (widthImg, heightImg)) # INV IMAGE WARP
-            print(8)
-            
+            imgInvWarp = cv2.warpPerspective(puzzleDrawings, rectangle2src, (image.shape[1], image.shape[0])) # INV IMAGE WARP
+
             image = cv2.addWeighted(image, 1, imgInvWarp, 1,0)
 
         except Exception as error:#,Argument
