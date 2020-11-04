@@ -44,10 +44,10 @@ def solve_sudoku(model, image, debug=False):
             row.append((startX, startY, endX, endY))
             
             cell = warped[startY:endY, startX:endX] # 原图裁切出单元格
-            digit = extract_digit(cell, debug=debug) # 是字符单元格
+            digit = extract_digit(cell,shape = (28, 28), border=[2,2,2,2] , debug=debug) # 是字符单元格
             # verify that the digit is not empty
             if digit is not None:
-                roi = cv2.resize(digit, (28, 28))
+                roi = digit # cv2.resize(digit, (28, 28))
                 roi = roi.astype("float") / 255.0
                 roi = img_to_array(roi)
                 roi = np.expand_dims(roi, axis=0) # 从第几个维度的位置插入一个维度 [[item]]

@@ -73,7 +73,8 @@ def find_puzzle(image, debug=False):
     }
 
 # 分辨过滤出数字单元格
-def extract_digit(cell, debug=False):
+# border=[t,b,l,r]
+def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
     print("extract_digit",1)
     if np.max(cell) - np.min(cell) <255*0.25: # 对比度太低
         return None
@@ -105,6 +106,33 @@ def extract_digit(cell, debug=False):
         return None
     # apply the mask to the thresholded cell
     digit = cv2.bitwise_and(thresh, thresh, mask=mask) # 用最大的轮廓做一次蒙版 数字笔画是一体的 避免干扰
+
+    if type(shape) != type(None):
+        x, y, w, h = cv2.boundingRect(c)
+        mlen = max(w, h)
+        y = (y + y+h - mlen)//2
+        x = (x + x+w - mlen)//2
+        w = h = mlen
+        roi =  digit[y : y+h, x : x+w]
+
+        roi = cv2.resize(
+            roi,
+            (
+                shape[0]-border[2]-border[3],
+                shape[1]-border[0]-border[1]
+            )
+        )
+        # roiPut = np.zeros(shape,dtype="uint8")
+        digit = cv2.copyMakeBorder(
+            roi,
+            border[0],border[1],border[2],border[3],
+            cv2.BORDER_CONSTANT,value=0
+        )
+        # print("***----",,mask)
+        # copyMakeBorder
+        cv2.imshow('roi',digit)
+        cv2.waitKey(0)
+
     print("extract_digit",5)
     # check to see if we should visualize the masking step
     if debug:
