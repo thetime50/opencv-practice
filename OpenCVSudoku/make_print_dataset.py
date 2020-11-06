@@ -53,7 +53,7 @@ DATASET_IMG_PATH = DATASET_PATH + 'img/'
 PRINT_SATASET_FILE = DATASET_PATH + 'print_dataset.npy'
 
 ## mixin dataset
-MIXIN_PRINT_RATE = 0.6
+MIXIN_PRINT_RATE = 0.4
 MIXIN_SATASET_FILE = DATASET_PATH + 'mixin_dataset.npy'
 
 datainfo=[
@@ -74,7 +74,7 @@ dataset = []
 
 srcshap = [28*2,28*2]
 desshap = [28,28]
-rendomshape = np.uint16(desshap)//3
+rendomshape = np.uint16(np.uint16(desshap)//3.3)
 
 imgsrc = []
 for index,item in enumerate(datainfo):
@@ -174,6 +174,11 @@ def generateDataSet(imgsrc, cnt):
         src2des = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
 
         cv2.warpPerspective(simg, src2des,tuple(desshap),dst = img) # INV IMAGE WARP
+        
+        # plt.figure()
+        # plt.imshow(imgdata[i], cmap=plt.cm.binary)
+        # plt.xlabel(labdata[i])
+        # plt.show()
 
     return (imgdata,labdata)
 
@@ -208,6 +213,27 @@ print('save')
 np.save( # 会覆盖旧文件
     PRINT_SATASET_FILE,
     ((trainData, trainLabels),(testData, testLabels))
+)
+
+def testShowData(title,imgs,labs):
+    imgs = imgs[:25] / 255.0
+
+    # 显示图片和名称
+    plt.figure(figsize=(10,10)).canvas.set_window_title(title)
+    # plt.title(title)
+    for i in range(25):
+        plt.subplot(5,5,i+1)
+        plt.xticks([])
+        plt.yticks([])
+        plt.grid(False)
+        plt.imshow(imgs[i], cmap=plt.cm.binary)
+        plt.xlabel(labs[i])
+    plt.show()
+
+testShowData(
+    "print dataset",
+    trainData,
+    trainLabels
 )
 
 # testDataset = np.load(PRINT_SATASET_FILE, allow_pickle=True)
@@ -266,23 +292,9 @@ np.save( # 会覆盖旧文件
     ((mixinTrainData, mixinTrainLabel),(mixinTeseData, mixinTeseLabel))
 )
 
-def testShowData(imgs,labs):
-    imgs = imgs[:25] / 255.0
-
-    # 显示图片和名称
-    plt.figure(figsize=(10,10))
-    for i in range(25):
-        plt.subplot(5,5,i+1)
-        plt.xticks([])
-        plt.yticks([])
-        plt.grid(False)
-        plt.imshow(imgs[i], cmap=plt.cm.binary)
-        plt.xlabel(mtrain_labels[i])
-    plt.show()
-
-
 testDataset = np.load(MIXIN_SATASET_FILE, allow_pickle=True)
 testShowData(
+    "mixin dataset",
     testDataset[0][0],
     testDataset[0][1]
 )
