@@ -103,6 +103,7 @@ if __name__ == "__main__":
 
     # 加载模型
     print("[INFO] loading digit classifier...")
+    print(args["model"])
     model = load_model(args["model"])
 
     # 加载图片
