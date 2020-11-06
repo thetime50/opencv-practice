@@ -4,25 +4,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.datasets import mnist
 
-(train_images, train_labels), (test_images, test_labels) = mnist.load_data()
+(mtrain_images, mtrain_labels), (mtest_images, mtest_labels) = mnist.load_data()
 
 # # 显示图片
 # plt.figure() # 创建或者激活一个图形框
-# plt.imshow(train_images[0])
+# plt.imshow(mtrain_images[0])
 # plt.colorbar()
 # plt.grid(False)
 # plt.show()
 
-# print(train_images.shape, train_labels.shape, test_images.shape, test_labels.shape)
-# print(train_images.dtype,train_labels.dtype)
+# print(mtrain_images.shape, mtrain_labels.shape, mtest_images.shape, mtest_labels.shape)
+# print(mtrain_images.dtype,mtrain_labels.dtype)
 # exit(0)
 # # (60000, 28, 28) (60000,) (10000, 28, 28) (10000,)
 # # uint8 uint8
 
 # #处理图片数据
-# train_images = train_images / 255.0
+# mtrain_images = mtrain_images / 255.0
 
-# test_images = test_images / 255.0
+# mtest_images = mtest_images / 255.0
 # # 显示图片和名称
 # plt.figure(figsize=(10,10))
 # for i in range(25):
@@ -30,8 +30,8 @@ from tensorflow.keras.datasets import mnist
 #     plt.xticks([])
 #     plt.yticks([])
 #     plt.grid(False)
-#     plt.imshow(train_images[i], cmap=plt.cm.binary)
-#     plt.xlabel(train_labels[train_labels[i]])
+#     plt.imshow(mtrain_images[i], cmap=plt.cm.binary)
+#     plt.xlabel(mtrain_labels[mtrain_labels[i]])
 # plt.show()
 
 # https://docs.opencv.org/master/d6/d6e/group__imgproc__draw.html#ga5126f47f883d730f633d74f07456c576
@@ -49,6 +49,12 @@ from tensorflow.keras.datasets import mnist
 
 DATASET_PATH = 'dataset/'
 DATASET_IMG_PATH = DATASET_PATH + 'img/'
+
+PRINT_SATASET_FILE = DATASET_PATH + 'print_dataset.npy'
+
+## mixin dataset
+MIXIN_PRINT_RATE = 0.6
+MIXIN_SATASET_FILE = DATASET_PATH + 'mixin_dataset.npy'
 
 datainfo=[
     {'text':'FONT_HERSHEY_SIMPLEX',         'font':cv2.FONT_HERSHEY_SIMPLEX,'count':10000},
@@ -133,7 +139,10 @@ def shap2point(shape):
 def generateDataSet(imgsrc, cnt):
     imgdata = np.zeros([cnt,*desshap],'uint8')
     labdata = np.zeros([cnt],'uint8')
+    print('generate %(cnt)d dataset...'%{'cnt':cnt})
     for i in range(cnt):
+        if i%5000 == 0:
+            print('generate ',i)
         # img = np.zeros(desshap,'uint8')
         img = imgdata[i]
         desPts = shap2point(img.shape)
@@ -188,3 +197,34 @@ def saveImgset(path,prefix,imgdata,labdata):
 #     testDataset[0],
 #     testDataset[1]
 # )
+
+# 生成数据集
+
+(trainData, trainLabels) = generateDataSet(imgsrc,60000)
+(testData, testLabels) = generateDataSet(imgsrc,40000)
+
+print('save')
+
+np.save( # 会覆盖旧文件
+    PRINT_SATASET_FILE,
+    ((trainData, trainLabels),(testData, testLabels))
+)
+
+# testDataset = np.load(PRINT_SATASET_FILE, allow_pickle=True)
+# # Object arrays cannot be loaded when allow_pickle=False
+# print(testDataset[0][0].shape)
+
+def mixinDataset(
+    rate, # data 1 rate
+    trainData, trainLabels
+
+):
+    pass
+
+MIXIN_PRINT_RATE
+MIXIN_SATASET_FILE
+
+np.save( # 会覆盖旧文件
+    PRINT_SATASET_FILE,
+    ((trainData, trainLabels),(testData, testLabels))
+)
