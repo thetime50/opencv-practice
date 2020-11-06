@@ -4,6 +4,8 @@
 
 # python solve_sudoku_puzzle.py --model output/digit_classifier.h5 --image Sudoku_puzzle.jpg
 # python solve_sudoku_puzzle.py --model output/digit_classifier.h5 --image Sudoku_puzzle.jpg -d 1
+# python solve_sudoku_puzzle.py --model output/print_digit_classifier.h5 --image Sudoku_puzzle1.jpg
+# python solve_sudoku_puzzle.py --model output/mixin_digit_classifier.h5 --image Sudoku_puzzle1.jpg
 
 # debug
 # python pyimagesearch\Sudoku\puzzle.py

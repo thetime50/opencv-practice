@@ -31,7 +31,7 @@ from tensorflow.keras.datasets import mnist
 #     plt.yticks([])
 #     plt.grid(False)
 #     plt.imshow(mtrain_images[i], cmap=plt.cm.binary)
-#     plt.xlabel(mtrain_labels[mtrain_labels[i]])
+#     plt.xlabel(mtrain_labels[i])
 # plt.show()
 
 # https://docs.opencv.org/master/d6/d6e/group__imgproc__draw.html#ga5126f47f883d730f633d74f07456c576
