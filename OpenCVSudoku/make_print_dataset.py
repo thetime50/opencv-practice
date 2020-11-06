@@ -201,7 +201,7 @@ def saveImgset(path,prefix,imgdata,labdata):
 # 生成数据集
 
 (trainData, trainLabels) = generateDataSet(imgsrc,60000)
-(testData, testLabels) = generateDataSet(imgsrc,40000)
+(testData, testLabels) = generateDataSet(imgsrc,10000)
 
 print('save')
 
@@ -214,17 +214,75 @@ np.save( # 会覆盖旧文件
 # # Object arrays cannot be loaded when allow_pickle=False
 # print(testDataset[0][0].shape)
 
+# 生成混合数据集
+
 def mixinDataset(
     rate, # data 1 rate
-    trainData, trainLabels
-
+    d1Data, d1Labels,
+    d2Data, d2Labels,
 ):
-    pass
+    if d1Data.shape != d2Data.shape or \
+        d1Labels.shape != d2Labels.shape :
+        print(
+            'd1Data.shape',d1Data.shape, 'd2Data.shape', d2Data.shape,
+            '\nd1Labels.shape',d1Labels.shape, 'd2Labels.shape', d2Labels.shape 
+        )
+        raise Exception("dataset shape error")
+    if len(d1Data) != len(d1Labels):
+        raise Exception("dataset length error")
 
-MIXIN_PRINT_RATE
-MIXIN_SATASET_FILE
+    data = []
+    labels = []
+    for i in range(len(d1Data)):
+        r = random.random()
+        if r<rate:
+            data.append(d1Data[i])
+            labels.append(d1Labels[i])
+        else:
+            data.append(d2Data[i])
+            labels.append(d2Labels[i])
+    data = np.array(data,dtype=d1Data.dtype)
+    labels = np.array(labels,dtype=d1Labels.dtype)
+    return ( data, labels)
+
+
+
+(mixinTrainData, mixinTrainLabel) = mixinDataset(
+    MIXIN_PRINT_RATE,
+    trainData,trainLabels,
+    mtrain_images,mtrain_labels
+)
+
+
+(mixinTeseData, mixinTeseLabel) = mixinDataset(
+    MIXIN_PRINT_RATE,
+    testData,testLabels,
+    mtest_images,mtest_labels
+)
+
 
 np.save( # 会覆盖旧文件
-    PRINT_SATASET_FILE,
-    ((trainData, trainLabels),(testData, testLabels))
+    MIXIN_SATASET_FILE,
+    ((mixinTrainData, mixinTrainLabel),(mixinTeseData, mixinTeseLabel))
+)
+
+def testShowData(imgs,labs):
+    imgs = imgs[:25] / 255.0
+
+    # 显示图片和名称
+    plt.figure(figsize=(10,10))
+    for i in range(25):
+        plt.subplot(5,5,i+1)
+        plt.xticks([])
+        plt.yticks([])
+        plt.grid(False)
+        plt.imshow(imgs[i], cmap=plt.cm.binary)
+        plt.xlabel(mtrain_labels[i])
+    plt.show()
+
+
+testDataset = np.load(MIXIN_SATASET_FILE, allow_pickle=True)
+testShowData(
+    testDataset[0][0],
+    testDataset[0][1]
 )
