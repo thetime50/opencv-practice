@@ -68,7 +68,7 @@ dataset = []
 
 srcshap = [28*2,28*2]
 desshap = [28,28]
-rendomshape = np.uint16(desshap)//2
+rendomshape = np.uint16(desshap)//4
 
 imgsrc = []
 for index,item in enumerate(datainfo):
@@ -157,11 +157,13 @@ def generateDataSet(imgsrc, cnt):
         label = random.randint(0,9)
         labdata[i] = label
         font = random.randint(0,len(datainfo)-1)
-        simg = imgsrc[font][label]
+        thi = random.randint(0,len(thickness)-1)
+        simg = imgsrc[font][label][thi]
 
         ranPts = np.float32(ranPts)
         src2des = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
-        img = cv2.warpPerspective(simg, src2des,tuple(desshap),img) # INV IMAGE WARP
+
+        cv2.warpPerspective(simg, src2des,tuple(desshap),dst = img) # INV IMAGE WARP
 
     return (imgdata,labdata)
 
@@ -173,12 +175,11 @@ def saveImgset(path,prefix,imgdata,labdata):
                 'idx':idx,
                 'lab':lab
             }
-        print(pathfile)
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-        cv2.imwrite(pathfile,img)
+        cv2.imwrite(pathfile,img) #需要新建文件夹 不然也不会报错
 
 
-testDataset = generateDataSet(imgsrc,30)
+testDataset = generateDataSet(imgsrc,90)
 
 saveImgset(
     './'+DATASET_IMG_PATH,
