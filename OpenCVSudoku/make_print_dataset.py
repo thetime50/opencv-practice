@@ -1,9 +1,10 @@
+import random
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-# from tensorflow.keras.datasets import mnist
+from tensorflow.keras.datasets import mnist
 
-# (train_images, train_labels), (test_images, test_labels) = mnist.load_data()
+(train_images, train_labels), (test_images, test_labels) = mnist.load_data()
 
 # # 显示图片
 # plt.figure() # 创建或者激活一个图形框
@@ -13,7 +14,10 @@ import matplotlib.pyplot as plt
 # plt.show()
 
 # print(train_images.shape, train_labels.shape, test_images.shape, test_labels.shape)
+# print(train_images.dtype,train_labels.dtype)
+# exit(0)
 # # (60000, 28, 28) (60000,) (10000, 28, 28) (10000,)
+# # uint8 uint8
 
 # #处理图片数据
 # train_images = train_images / 255.0
@@ -43,6 +47,8 @@ import matplotlib.pyplot as plt
 #     lineType	Line type. See LineTypes # 线形
 #     bottomLeftOrigin	When true, the image data origin is at the bottom-left corner. Otherwise, it is at the top-left corner.
 
+DATASET_PATH = 'dataset/'
+DATASET_IMG_PATH = DATASET_PATH + 'img/'
 
 datainfo=[
     {'text':'FONT_HERSHEY_SIMPLEX',         'font':cv2.FONT_HERSHEY_SIMPLEX,'count':10000},
@@ -61,6 +67,8 @@ thickness=[2,4,6,8]
 dataset = []
 
 srcshap = [28*2,28*2]
+desshap = [28,28]
+rendomshape = np.uint16(desshap)//2
 
 imgsrc = []
 for index,item in enumerate(datainfo):
@@ -98,11 +106,83 @@ def showCell(win,data):
             plt.xlabel(datainfo[rindax]['text']+'-'+str(cindex))
     plt.show()
 
-for index,item in enumerate(thickness):
-    showdata = imgsrc[:,:,index]
-    showCell(index,showdata)
+# for index,item in enumerate(thickness):
+#     showdata = imgsrc[:,:,index]
+#     showCell(index,showdata)
 
 # cv2.imshow('cv0',imgsrc[0][5][0])
 # cv2.imshow('cv3',imgsrc[0][5][3])
 # cv2.waitKey(0)
 
+
+
+# save ((trainData, trainLabels),(testData, testLabels))
+# DATASET_PATH
+# DATASET_IMG_PATH
+# 0---1
+# |   |
+# 3---2
+def shap2point(shape):
+    return np.float32([
+        [0,0],
+        [shape[1],0],
+        [shape[1],shape[0]],
+        [0,shape[0]],
+    ])
+
+def generateDataSet(imgsrc, cnt):
+    imgdata = np.zeros([cnt,*desshap],'uint8')
+    labdata = np.zeros([cnt],'uint8')
+    for i in range(cnt):
+        # img = np.zeros(desshap,'uint8')
+        img = imgdata[i]
+        desPts = shap2point(img.shape)
+        srcPts = shap2point(srcshap)
+        randomTrans = [
+            [1,1],
+            [-1,1],
+            [-1,-1],
+            [1,-1]
+        ]
+        # numpy.random.uniform(low=0.0, high=1.0, size=None)
+        ranPts = np.float32(
+            [[random.uniform(0,rendomshape[0]),random.uniform(0,rendomshape[1])] for i in range(4)]
+        )
+
+        ranPts = ranPts * randomTrans
+        ranPts = ranPts + desPts
+
+        # srcimg = random
+
+        label = random.randint(0,9)
+        labdata[i] = label
+        font = random.randint(0,len(datainfo)-1)
+        simg = imgsrc[font][label]
+
+        ranPts = np.float32(ranPts)
+        src2des = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
+        img = cv2.warpPerspective(simg, src2des,tuple(desshap),img) # INV IMAGE WARP
+
+    return (imgdata,labdata)
+
+def saveImgset(path,prefix,imgdata,labdata):
+    for idx,(img,lab) in enumerate(zip(imgdata,labdata)):
+        pathfile = '%(path)s%(prefix)s_sn%(idx)06d_%(lab)d.bmp'%{
+                'path':path,
+                'prefix':prefix,
+                'idx':idx,
+                'lab':lab
+            }
+        print(pathfile)
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        cv2.imwrite(pathfile,img)
+
+
+testDataset = generateDataSet(imgsrc,30)
+
+saveImgset(
+    './'+DATASET_IMG_PATH,
+    'test',
+    testDataset[0],
+    testDataset[1]
+)

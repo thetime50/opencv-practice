@@ -33,8 +33,8 @@ def producer(state,key,image):
             puzzleDrawings = np.zeros_like(puzzleImage)
             draw_sudoku_solution(puzzleDrawings,cellLocs,solution,puzzle)
 
-            heightImg = puzzleImage.shape[0] # 这个定义不对
-            widthImg = puzzleImage.shape[1]
+            heightImg = puzzleImage.shape[0] # 校正后图片高度
+            widthImg = puzzleImage.shape[1] # 校正后图片宽度
             pts1 = np.float32([ # 原图的谜题框
                 [puzzleCnt[0][0]],
                 [puzzleCnt[1][0]],

@@ -1,6 +1,7 @@
 opencv_dataset_01/
 __pycache__/
 .ipynb_checkpoints
+pyimagesearch
 
 /tempdoc/saveDir1.avi
 /tempdoc/haarcascade_*.xml
