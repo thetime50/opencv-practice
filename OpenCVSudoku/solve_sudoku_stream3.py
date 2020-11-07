@@ -40,7 +40,6 @@ def saveCell(args):
     puzzleImage=args["puzzleImage"] # 透视修正后的彩图
     puzzleCnt=args["puzzleCnt"] # 数独范围
 
-    print("*",time.time() - scTimestamp , SAVECELL_GAP_S)
     if time.time() - scTimestamp < SAVECELL_GAP_S:
         return True
 
@@ -56,8 +55,6 @@ def saveCell(args):
             }
         print('save cell:',pathfile)
         cv2.imwrite(pathfile,digit)
-
-    print("**",xindex,yindex)
     return True
 
 def producer(state,key,image):
