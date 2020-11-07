@@ -21,7 +21,7 @@ import imutils
 import cv2
 
 
-def solve_sudoku(model, image, cellCb, debug=False,):
+def solve_sudoku(model, image, cellCb=None, debug=False,):
 
     # find the puzzle in the image and then
     fp_result = find_puzzle(image, debug=debug)
@@ -48,7 +48,7 @@ def solve_sudoku(model, image, cellCb, debug=False,):
             cell = warped[startY:endY, startX:endX] # 原图裁切出单元格
             digit = extract_digit(cell,shape = (28, 28), border=[2,2,2,2] , debug=debug) # 是字符单元格
             # verify that the digit is not empty
-            cellCb and cellCb({
+            continue_ =  cellCb and cellCb({
                 "cellLocs" : cellLocs, #每个单元格位置
                 "xindex":x,
                 "yindex":y,
@@ -56,6 +56,8 @@ def solve_sudoku(model, image, cellCb, debug=False,):
                 "puzzleImage" : puzzleImage, # 透视修正后的彩图
                 "puzzleCnt" : puzzleCnt, # 数独范围
             })
+            if continue_:
+                continue
             if digit is not None:
                 roi = digit # cv2.resize(digit, (28, 28))
                 roi = roi.astype("float") / 255.0

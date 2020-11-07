@@ -12,13 +12,66 @@ MODEL_PATH = "output/digit_classifier.h5"
 
 model = None
 
+scSn = 0
+SAVECELL_PATH = "dataset/sampling/"
+SAVECELL_GAP_S = 0.8
+N = None
+scTimestamp = time.time()
+scPuzzle = [
+    [8,N,N, N,7,N, N,N,9 ],
+    [N,5,N, 8,N,1, N,7,N ],
+    [N,N,4, N,9,N, 7,N,N ],
+
+    [N,6,N, 1,N,7, N,2,N ],
+    [5,N,8, N,6,N, 7,N,1 ],
+    [N,7,N, 5,N,2, N,9,N ],
+    
+    [N,N,1, N,4,N, 6,N,N ],
+    [N,8,N, 3,N,9, N,4,N ],
+    [3,N,N, N,5,N, N,N,8 ],
+]
+def saveCell(args):
+    global scSn
+    global scTimestamp
+    cellLocs=args["cellLocs"] #每个单元格位置
+    xindex=args["xindex"]
+    yindex=args["yindex"]
+    digit=args["digit"]
+    puzzleImage=args["puzzleImage"] # 透视修正后的彩图
+    puzzleCnt=args["puzzleCnt"] # 数独范围
+
+    print("*",time.time() - scTimestamp , SAVECELL_GAP_S)
+    if time.time() - scTimestamp < SAVECELL_GAP_S:
+        return True
+
+
+    if type(digit) != type(None) and type(scPuzzle[yindex][xindex]) != type(None):
+        scTimestamp = time.time()
+
+        pathfile = SAVECELL_PATH + 'samp_sn%(sn)06d_%(x)d_%(y)d_%(lab)d.bmp'%{
+                'sn':scSn,
+                'x':xindex,
+                'y':yindex,
+                'lab':scPuzzle[yindex][xindex]
+            }
+        print('save cell:',pathfile)
+        cv2.imwrite(pathfile,digit)
+
+    print("**",xindex,yindex)
+    return True
+
 def producer(state,key,image):
     # if (key & 0xFF ==ord('f')) and  (state == 'none'):
     global model
 
     if state == 'none':
         try:
-            solve_result = solve_sudoku(model,image)
+            solve_result = solve_sudoku(model,image,)
+            #############
+            # global scSn
+            # solve_result = solve_sudoku(model,image, cellCb=saveCell)
+            # scSn+=1
+            #############
             puzzle = solve_result["puzzle"]
             solution = solve_result["solution"]
             cellLocs = solve_result["cellLocs"]
