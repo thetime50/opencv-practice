@@ -71,7 +71,8 @@ def solve_sudoku(model, image, cellCb=None, debug=False,):
                 board[y, x] = pred
         # add the row to our cell locations
         cellLocs.append(row)
-
+    
+    print("puzzleing ...")
     puzzle = Sudoku(3, 3, board=board.tolist())
     solution = puzzle.solve() # 解数独
     return {

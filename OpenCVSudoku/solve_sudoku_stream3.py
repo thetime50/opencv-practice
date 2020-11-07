@@ -17,6 +17,7 @@ SAVECELL_PATH = "dataset/sampling/"
 SAVECELL_GAP_S = 0.8
 N = None
 scTimestamp = time.time()
+scSaveCell = False
 scPuzzle = [
     [8,N,N, N,7,N, N,N,9 ],
     [N,5,N, 8,N,1, N,7,N ],
@@ -31,8 +32,7 @@ scPuzzle = [
     [3,N,N, N,5,N, N,N,8 ],
 ]
 def saveCell(args):
-    global scSn
-    global scTimestamp
+    global scSn, scTimestamp, scSaveCell
     cellLocs=args["cellLocs"] #每个单元格位置
     xindex=args["xindex"]
     yindex=args["yindex"]
@@ -41,11 +41,10 @@ def saveCell(args):
     puzzleCnt=args["puzzleCnt"] # 数独范围
 
     if time.time() - scTimestamp < SAVECELL_GAP_S:
-        return True
+        return
 
 
     if type(digit) != type(None) and type(scPuzzle[yindex][xindex]) != type(None):
-        scTimestamp = time.time()
 
         pathfile = SAVECELL_PATH + 'samp_sn%(sn)06d_%(x)d_%(y)d_%(lab)d.bmp'%{
                 'sn':scSn,
@@ -55,7 +54,8 @@ def saveCell(args):
             }
         print('save cell:',pathfile)
         cv2.imwrite(pathfile,digit)
-    return True
+        scSaveCell = True
+    return
 
 def producer(state,key,image):
     # if (key & 0xFF ==ord('f')) and  (state == 'none'):
@@ -65,9 +65,12 @@ def producer(state,key,image):
         try:
             solve_result = solve_sudoku(model,image,)
             #############
-            # global scSn
+            # global scSn,scSaveCell,scTimestamp
             # solve_result = solve_sudoku(model,image, cellCb=saveCell)
-            # scSn+=1
+            # if scSaveCell:
+            #     scSaveCell = False
+            #     scSn+=1
+            #     scTimestamp = time.time()
             #############
             puzzle = solve_result["puzzle"]
             solution = solve_result["solution"]
