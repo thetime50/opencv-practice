@@ -12,25 +12,39 @@ MODEL_PATH = "output/digit_classifier.h5"
 
 model = None
 
+
+################################################
+##
+
 scSn = 0
 SAVECELL_PATH = "dataset/sampling/"
 SAVECELL_GAP_S = 0.8
-N = None
 scTimestamp = time.time()
 scSaveCell = False
-scPuzzle = [
-    [8,N,N, N,1,N, N,N,9 ],
-    [N,5,N, 8,N,7, N,1,N ],
-    [N,N,4, N,9,N, 7,N,N ],
+def getSudokuPuzzle():
+    N = None
+    return [
+        [8,N,N, N,1,N, N,N,9 ],
+        [N,5,N, 8,N,7, N,1,N ],
+        [N,N,4, N,9,N, 7,N,N ],
 
-    [N,6,N, 7,N,1, N,2,N ],
-    [5,N,8, N,6,N, 1,N,7 ],
-    [N,1,N, 5,N,2, N,9,N ],
-    
-    [N,N,7, N,4,N, 6,N,N ],
-    [N,8,N, 3,N,9, N,4,N ],
-    [3,N,N, N,5,N, N,N,8 ],
-]
+        [N,6,N, 7,N,1, N,2,N ],
+        [5,N,8, N,6,N, 1,N,7 ],
+        [N,1,N, 5,N,2, N,9,N ],
+        
+        [N,N,7, N,4,N, 6,N,N ],
+        [N,8,N, 3,N,9, N,4,N ],
+        [3,N,N, N,5,N, N,N,8 ],
+    ]
+
+def get09Table():
+    return [[(i+j)%10 for i in range(10)] for j in range(10)]
+# scPuzzle = getSudokuPuzzle()
+scPuzzle = get09Table()
+
+##
+############################################################
+
 def saveCell(args):
     global scSn, scTimestamp, scSaveCell
     cellLocs=args["cellLocs"] #每个单元格位置
@@ -41,7 +55,7 @@ def saveCell(args):
     puzzleCnt=args["puzzleCnt"] # 数独范围
 
     if time.time() - scTimestamp < SAVECELL_GAP_S:
-        return
+        return True
 
 
     if type(digit) != type(None) and type(scPuzzle[yindex][xindex]) != type(None):
@@ -55,22 +69,18 @@ def saveCell(args):
         print('save cell:',pathfile)
         cv2.imwrite(pathfile,digit)
         scSaveCell = True
-    return
+    return True
 
 def producer(state,key,image):
     # if (key & 0xFF ==ord('f')) and  (state == 'none'):
     global model
 
     if state == 'none':
+        global scSn,scSaveCell,scTimestamp
         try:
             solve_result = solve_sudoku(model,image,)
             #############
-            # global scSn,scSaveCell,scTimestamp
             # solve_result = solve_sudoku(model,image, cellCb=saveCell)
-            # if scSaveCell:
-            #     scSaveCell = False
-            #     scSn+=1
-            #     scTimestamp = time.time()
             #############
             puzzle = solve_result["puzzle"]
             solution = solve_result["solution"]
@@ -105,6 +115,11 @@ def producer(state,key,image):
         except Exception as error:#,Argument
             print("***error***",error)
             pass
+        finally:
+            if scSaveCell:
+                scSaveCell = False
+                scSn+=1
+                scTimestamp = time.time()
 
     return state,image
 

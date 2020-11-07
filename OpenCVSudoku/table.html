@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/vue"></script> -->
+</head>
+<body>
+    <div id="app">
+        {{ message }}
+        <div v-for="i in Math.ceil(styles.length/9)">
+            <div class="table">
+                <div class="row" v-for="row in data" :style="styles[i-1+row]||{}">
+                    <div class="cell" v-for="cell in data">
+                        {{(row+cell)%10}}
+                    </div>
+                    <div class="info">{{i-1+row}}. {{styles[i+row]}}</div>
+                </div>
+            </div>
+        </div>
+      </div>
+      <script>
+          var app = new Vue({
+            el: '#app',
+            data: {
+              message: 'Hello Vue!',
+              data:Array.from({length:10},(v,j)=> j),
+            },
+            computed:{
+                styles(){
+                    let result = []
+                    let weights = [
+                        200,/* 400, */600,/* 800, */900
+                    ]
+                    let fontFamilys=[
+                        "Microsoft JhengHei",
+                        "Harlow Solid",
+                        "Brush Script MT",
+                        "华文琥珀",
+                        "Cooper",
+                        "Forte",
+
+                    ]
+                    weights.forEach((wv,wi,wa)=>{
+                        fontFamilys.forEach((fv,fi,fa)=>{
+                            result.push(
+                                {fontFamily:fv,fontWeight:wv,},
+                            )
+                            result.push(
+                                {fontFamily:fv,fontWeight:wv,fontStyle:'italic'},
+                            )
+                        })
+                    })
+                    return result
+                }
+            },
+          })
+      </script>
+      <style>
+          html{
+              font-size: 20px;
+              /* text-align: center; */
+          }
+          .cell{
+              font-size: 2rem;
+              line-height: 2rem;
+              width: 2rem;
+              text-align: center;
+              display: inline-block;
+              border-right:2px solid #ccc;
+          }
+          .cell:last-child{
+              border-right:0;
+          }
+          .row{
+              position: relative;
+            }
+          .row .cell{
+              border-bottom:2px solid #ccc;
+          }
+          .row:last-child .cell{
+              border-bottom: 0;
+          }
+          .table{
+              margin-left: 150px;
+              margin-top: 50px;
+              display: inline-block;
+              border:5px solid #666;
+          }
+          .info{
+              position: absolute;
+              font-size: 0.8rem;
+              left: 110%;
+              top:0;
+              width: 100%;
+          }
+      </style>
+</body>
+</html>
