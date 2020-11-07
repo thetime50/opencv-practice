@@ -19,15 +19,15 @@ N = None
 scTimestamp = time.time()
 scSaveCell = False
 scPuzzle = [
-    [8,N,N, N,7,N, N,N,9 ],
-    [N,5,N, 8,N,1, N,7,N ],
+    [8,N,N, N,1,N, N,N,9 ],
+    [N,5,N, 8,N,7, N,1,N ],
     [N,N,4, N,9,N, 7,N,N ],
 
-    [N,6,N, 1,N,7, N,2,N ],
-    [5,N,8, N,6,N, 7,N,1 ],
-    [N,7,N, 5,N,2, N,9,N ],
+    [N,6,N, 7,N,1, N,2,N ],
+    [5,N,8, N,6,N, 1,N,7 ],
+    [N,1,N, 5,N,2, N,9,N ],
     
-    [N,N,1, N,4,N, 6,N,N ],
+    [N,N,7, N,4,N, 6,N,N ],
     [N,8,N, 3,N,9, N,4,N ],
     [3,N,N, N,5,N, N,N,8 ],
 ]
