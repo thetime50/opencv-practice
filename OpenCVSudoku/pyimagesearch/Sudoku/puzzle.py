@@ -75,7 +75,6 @@ def find_puzzle(image, debug=False):
 # 分辨过滤出数字单元格
 # border=[t,b,l,r]
 def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
-    print("extract_digit",1)
     if np.max(cell) - np.min(cell) <255*0.25: # 对比度太低
         return None
     thresh = cv2.threshold(cell, 0, 255, # 自动阈值
@@ -85,12 +84,10 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
     if debug:
         cv2.imshow("Cell Thresh", thresh)
         cv2.waitKey(0)
-    print("extract_digit",2)
     
     cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_SIMPLE)
     cnts = imutils.grab_contours(cnts) # 兼容cv版本处理findContours的返回结果
-    print("extract_digit",3)
     if len(cnts) == 0:
         return None
 
@@ -98,7 +95,6 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
     c = max(cnts, key=cv2.contourArea) # 获取面积最大的轮廓
     mask = np.zeros(thresh.shape, dtype="uint8")
     cv2.drawContours(mask, [c], -1, 255, -1)
-    print("extract_digit",4)
 
     (h, w) = thresh.shape
     percentFilled = cv2.countNonZero(mask) / float(w * h) # 轮廓占单元格的比例
@@ -130,10 +126,9 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
         )
         # print("***----",,mask)
         # copyMakeBorder
-        cv2.imshow('roi',digit)
-        cv2.waitKey(0)
+        # cv2.imshow('roi',digit)
+        # cv2.waitKey(0)
 
-    print("extract_digit",5)
     # check to see if we should visualize the masking step
     if debug:
         # cv2.imshow("Digit", digit)

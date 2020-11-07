@@ -191,7 +191,7 @@ def saveImgset(path,prefix,imgdata,labdata):
                 'lab':lab
             }
         # print(pathfile)
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        # img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         cv2.imwrite(pathfile,img) #需要新建文件夹 不然也不会报错
 
 
