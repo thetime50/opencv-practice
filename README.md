@@ -14,7 +14,7 @@ tool:
 ![pose.gif](./doc/pose1.gif)
 
 ## 环境
-conda create --name tf-cv imutils tensorflow opencv pandas numpy matplotlib ipykernel  
+conda create --name tf-cv imutils tensorflow=2.10 opencv pandas numpy matplotlib ipykernel  
 tf-cv.yml  
 
 conda install --name tf-cv scikit-learn scikit-image  
@@ -32,3 +32,7 @@ y
 conda update navigator-updater
 y
 ```
+
+## tf-gpu win最后支持版本
+tf2.10是最后支持win gpu的版本 之后的在wsl2上安装
+[2.10 last version to support native Windows GPU](https://discuss.tensorflow.org/t/2-10-last-version-to-support-native-windows-gpu/12404)
