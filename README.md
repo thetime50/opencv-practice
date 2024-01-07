@@ -15,11 +15,11 @@ tool:
 
 ## 环境
 conda create --name tf-cv imutils tensorflow=2.10 opencv pandas numpy matplotlib ipykernel  
-tf-cv.yml  
 
 conda install --name tf-cv scikit-learn scikit-image  
 pip install py-sudoku  
 
+conda env create -f tf-cv.yml
 
 ## conda 更新
 ```cmd
