@@ -22,22 +22,27 @@ pip install py-sudoku
 
 conda env create -f tf-cv.yml
 
-
 **conda gpu**
 
-conda create --name tf-cv python=3.6 tensorflow-gpu=2.6
+https://blog.csdn.net/xuchaoxin1375/article/details/129698338
+
+Note: Do not install TensorFlow with conda. It may not have the latest stable version. pip is recommended since TensorFlow is only officially released to PyPI.
+
+
+conda create --name tf-cv python=3.9
 conda activate tf-cv
+<!-- conda search tensorflow -->
+python -m pip install --upgrade pip
+pip index versions tensorflow
+conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0
+pip install tensorflow==2.10
 conda install imutils opencv pandas numpy matplotlib ipykernel
 conda install scikit-learn scikit-image  
 pip install py-sudoku  
 
+# 添加到jupyter内核选项
+python kernel install --user --name tf-cv --display-name "tf-cv"
 
-*直接 conda create --name tf-cv tensorflow-gpu 安装的是py3.6 tf1.1*
-
-**图形界面安装tf-gpu**
-
-conda create --name tf-cv4 python=3.6
-图形界面搜索安装 tensorflow-gpu=2.6 (需要命令行启动否则会报错 Multiple Errors Encountered)
 
 ## conda 更新
 ```cmd
