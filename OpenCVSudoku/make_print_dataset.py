@@ -1,8 +1,11 @@
 import random
 import cv2
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from tensorflow.keras.datasets import mnist
+
+matplotlib.interactive(False) # 关闭plt窗口后show()能返回继续
 
 (mtrain_images, mtrain_labels), (mtest_images, mtest_labels) = mnist.load_data()
 
@@ -203,6 +206,13 @@ def saveImgset(path,prefix,imgdata,labdata):
 #     testDataset[1]
 # )
 
+# 处理np.array((),dtype=object)自动广播报错问题
+def objectArray(*args):
+    res = np.zeros( len(args),object)
+    for i,item in enumerate(args):
+        res[i] = item
+    return res
+
 # 生成数据集
 
 (trainData, trainLabels) = generateDataSet(imgsrc,60000)
@@ -212,14 +222,17 @@ print('save')
 
 np.save( # 会覆盖旧文件
     PRINT_SATASET_FILE,
-    ((trainData, trainLabels),(testData, testLabels))
+    (
+        objectArray(trainData, trainLabels),
+        objectArray(testData, testLabels)
+    )
 )
 
 def testShowData(title,imgs,labs):
     imgs = imgs[:25] / 255.0
 
     # 显示图片和名称
-    plt.figure(figsize=(10,10)).canvas.set_window_title(title)
+    plt.figure(figsize=(10,10)).canvas.manager.set_window_title(title)
     # plt.title(title)
     for i in range(25):
         plt.subplot(5,5,i+1)
@@ -228,7 +241,7 @@ def testShowData(title,imgs,labs):
         plt.grid(False)
         plt.imshow(imgs[i], cmap=plt.cm.binary)
         plt.xlabel(labs[i])
-    plt.show()
+    plt.show() # block=False
 
 testShowData(
     "print dataset",
@@ -289,7 +302,10 @@ def mixinDataset(
 
 np.save( # 会覆盖旧文件
     MIXIN_SATASET_FILE,
-    ((mixinTrainData, mixinTrainLabel),(mixinTeseData, mixinTeseLabel))
+    (
+        objectArray(mixinTrainData, mixinTrainLabel),
+        objectArray(mixinTeseData, mixinTeseLabel)
+    )
 )
 
 testDataset = np.load(MIXIN_SATASET_FILE, allow_pickle=True)

@@ -10,6 +10,7 @@
 # debug
 # python pyimagesearch\Sudoku\puzzle.py
 
+import h5py # 处理imutils冲突
 from pyimagesearch.sudoku import extract_digit
 from pyimagesearch.sudoku import find_puzzle
 from tensorflow.keras.preprocessing.image import img_to_array

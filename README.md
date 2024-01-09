@@ -35,13 +35,25 @@ conda activate tf-cv
 python -m pip install --upgrade pip
 pip index versions tensorflow
 conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0
-pip install tensorflow==2.10
-conda install imutils opencv pandas numpy matplotlib ipykernel
+pip install tensorflow==2.10 opencv-python
+conda install imutils pandas numpy matplotlib ipykernel
 conda install scikit-learn scikit-image  
 pip install py-sudoku  
 
-# 添加到jupyter内核选项
+### 添加到jupyter内核选项
 python kernel install --user --name tf-cv --display-name "tf-cv"
+
+<details>
+<summary>
+dependency conflicts
+</summary>
+
+dephell-licenses 0.1.7 requires attrs, which is not installed.
+dephell-markers 1.0.3 requires attrs, which is not installed.
+dephell-pythons 0.1.15 requires attrs, which is not installed.
+dephell-venvs 0.1.18 requires attrs, which is not installed.
+html5lib 1.1 requires webencodings, which is not installed.
+</details>
 
 
 ## conda 更新
@@ -81,6 +93,3 @@ source ~/.bashrc
 测试
 conda info --envs
 
-
-### linux 卸载conda
-[Linux卸载Anaconda](https://blog.csdn.net/hang916/article/details/79530108)
