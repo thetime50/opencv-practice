@@ -72,9 +72,17 @@ def find_puzzle(image, debug=False):
         "puzzleCnt":puzzleCnt,#题目轮廓
     }
 
+def debugShow(title,img,size=(250,250),iswait=True):
+    cv2.namedWindow(title, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(title,**size)
+    cv2.imshow(title, img)
+    iswait and cv2.waitKey(0)
+
 # 分辨过滤出数字单元格
+# cell为二维亮度图片 输出为笔画图片
 # border=[t,b,l,r]
-def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
+def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None):
+    cellstr = (str(position) if position else "")
     if np.max(cell) - np.min(cell) <255*0.25: # 对比度太低
         return None
     thresh = cv2.threshold(cell, 0, 255, # 自动阈值
@@ -82,8 +90,7 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
     thresh = clear_border(thresh) # 清除边框
     
     if debug:
-        cv2.imshow("Cell Thresh", thresh)
-        cv2.waitKey(0)
+        debugShow("Cell Thresh" + cellstr, np.concatenate((cell,thresh),axis=1), (500,250))
     
     cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_SIMPLE)
@@ -98,18 +105,23 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
 
     (h, w) = thresh.shape
     percentFilled = cv2.countNonZero(mask) / float(w * h) # 轮廓占单元格的比例
-    if percentFilled < 0.03:
+    if percentFilled**0.5 < 0.04: # 面积比线性转换
         return None
     # apply the mask to the thresholded cell
     digit = cv2.bitwise_and(thresh, thresh, mask=mask) # 用最大的轮廓做一次蒙版 数字笔画是一体的 避免干扰
 
     if type(shape) != type(None):
         x, y, w, h = cv2.boundingRect(c)
+
         mlen = max(w, h)
-        y = (y + y+h - mlen)//2
-        x = (x + x+w - mlen)//2
-        w = h = mlen
-        roi =  digit[y : y+h, x : x+w]
+        ry = y + (h - mlen)//2
+        rx = x + (w - mlen)//2
+        rw = rh = mlen
+        ry1 = max(ry,0)
+        ry2 = min(ry+rh,digit.shape[0]-1)
+        rx1 = max(rx,0)
+        rx2 = min(rx+rw,digit.shape[1]-1)
+        roi =  digit[ry1 : ry2, rx1 : rx2]
 
         roi = cv2.resize(
             roi,
@@ -126,14 +138,13 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False):
         )
         # print("***----",,mask)
         # copyMakeBorder
-        # cv2.imshow('roi',digit)
+        # cv2.imshow('roi' + cellstr,digit)
         # cv2.waitKey(0)
 
     # check to see if we should visualize the masking step
     if debug:
-        # cv2.imshow("Digit", digit)
-        cv2.imshow("Digit", cv2.resize(digit, (28, 28)))
-        cv2.waitKey(0)
+        # cv2.imshow("Digit" + cellstr, digit)
+        debugShow("Digit" + cellstr, cv2.resize(digit, (28, 28)))
     # return the digit to the calling function
     return digit
 

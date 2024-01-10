@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from tensorflow.keras.datasets import mnist
+from pyimagesearch.sudoku import extract_digit
 
 matplotlib.interactive(False) # 关闭plt窗口后show()能返回继续
 
@@ -54,9 +55,11 @@ DATASET_PATH = 'dataset/'
 DATASET_IMG_PATH = DATASET_PATH + 'img/'
 
 PRINT_SATASET_FILE = DATASET_PATH + 'print_dataset.npy'
+PRINT_CLEAR_BORDER_RATE = 0.5
+PRINT_STRETCH_RATE = 0.33
 
 ## mixin dataset
-MIXIN_PRINT_RATE = 0.4
+MIXIN_PRINT_RATE = 0.5
 MIXIN_SATASET_FILE = DATASET_PATH + 'mixin_dataset.npy'
 
 datainfo=[
@@ -77,7 +80,6 @@ dataset = []
 
 srcshap = [28*2,28*2]
 desshap = [28,28]
-rendomshape = np.uint16(np.uint16(desshap)//3.3)
 
 imgsrc = []
 for index,item in enumerate(datainfo):
@@ -139,7 +141,8 @@ def shap2point(shape):
         [0,shape[0]],
     ])
 
-def generateDataSet(imgsrc, cnt):
+def generateDataSet(imgsrc, cnt,clearBorderRate = 0):
+
     imgdata = np.zeros([cnt,*desshap],'uint8')
     labdata = np.zeros([cnt],'uint8')
     print('generate %(cnt)d dataset...'%{'cnt':cnt})
@@ -148,8 +151,6 @@ def generateDataSet(imgsrc, cnt):
             print('generate ',i)
         # img = np.zeros(desshap,'uint8')
         img = imgdata[i]
-        desPts = shap2point(img.shape)
-        srcPts = shap2point(srcshap)
         randomTrans = [
             [1,1],
             [-1,1],
@@ -157,12 +158,6 @@ def generateDataSet(imgsrc, cnt):
             [1,-1]
         ]
         # numpy.random.uniform(low=0.0, high=1.0, size=None)
-        ranPts = np.float32(
-            [[random.uniform(0,rendomshape[0]),random.uniform(0,rendomshape[1])] for i in range(4)]
-        )
-
-        ranPts = ranPts * randomTrans
-        ranPts = ranPts + desPts
 
         # srcimg = random
 
@@ -172,11 +167,46 @@ def generateDataSet(imgsrc, cnt):
         thi = random.randint(0,len(thickness)-1)
         simg = imgsrc[font][label][thi]
 
-        ranPts = np.float32(ranPts)
+        if(clearBorderRate==0 or random.random()>clearBorderRate):
+            desPts = shap2point(img.shape)
+            srcPts = shap2point(srcshap)
+            # 四角随意拉伸偏移量 目标形状为标准(28)
+            ranPts = np.float32(
+                [
+                    [ \
+                        random.uniform(0,img.shape[1]*PRINT_STRETCH_RATE),\
+                        random.uniform(0,img.shape[0]*PRINT_STRETCH_RATE)\
+                    ] for i in range(4)\
+                ]
+            )
 
-        src2des = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
+            ranPts = ranPts * randomTrans
+            ranPts = ranPts + desPts
+            ranPts = np.float32(ranPts)
+            src2des = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
+            cv2.warpPerspective(simg, src2des,tuple(desshap),dst = img) # INV IMAGE WARP
+        else:
+            tempImg = np.zeros(simg.shape, "uint8")
+            
+            tempPts = shap2point(tempImg.shape)
+            srcPts = shap2point(srcshap)
+            # 四角随意拉伸偏移量 目标形状为标准
+            ranPts = np.float32(
+                [
+                    [ \
+                        random.uniform(0,tempImg.shape[1]*PRINT_STRETCH_RATE),\
+                        random.uniform(0,tempImg.shape[0]*PRINT_STRETCH_RATE)\
+                    ] for i in range(4)\
+                ]
+            )
 
-        cv2.warpPerspective(simg, src2des,tuple(desshap),dst = img) # INV IMAGE WARP
+            ranPts = ranPts * randomTrans
+            ranPts = ranPts + tempPts
+            ranPts = np.float32(ranPts)
+            src2temp = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
+            cv2.warpPerspective(simg, src2temp,tuple(tempImg.shape),dst = tempImg) # INV IMAGE WARP
+            tempImg = extract_digit(255-tempImg,shape = img.shape, border=[2,2,2,2])
+            np.copyto(img,tempImg)
         
         # plt.figure()
         # plt.imshow(imgdata[i], cmap=plt.cm.binary)
@@ -215,8 +245,8 @@ def objectArray(*args):
 
 # 生成数据集
 
-(trainData, trainLabels) = generateDataSet(imgsrc,60000)
-(testData, testLabels) = generateDataSet(imgsrc,10000)
+(trainData, trainLabels) = generateDataSet(imgsrc,60000,PRINT_CLEAR_BORDER_RATE)
+(testData, testLabels) = generateDataSet(imgsrc,10000,PRINT_CLEAR_BORDER_RATE)
 
 print('save')
 

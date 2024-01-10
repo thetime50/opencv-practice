@@ -47,7 +47,7 @@ def solve_sudoku(model, image, cellCb=None, debug=False,):
             row.append((startX, startY, endX, endY))
             
             cell = warped[startY:endY, startX:endX] # 原图裁切出单元格
-            digit = extract_digit(cell,shape = (28, 28), border=[2,2,2,2] , debug=debug) # 是字符单元格
+            digit = extract_digit(cell,shape = (28, 28), border=[2,2,2,2] , debug=debug,position = (x,y)) # 是字符单元格
             # verify that the digit is not empty
             continue_ =  cellCb and cellCb({
                 "cellLocs" : cellLocs, #每个单元格位置
@@ -86,9 +86,9 @@ def solve_sudoku(model, image, cellCb=None, debug=False,):
 
 def draw_sudoku_solution(image,cells,solution,puzzle = None):
     # loop over the cell locations and board
-    for (cellRow, boardRow) in zip(cells, solution.board):
+    for (cellRow, boardRow,pBoardRow) in zip(cells, solution.board,puzzle.board):
         # loop over individual cell in the row
-        for (box, digit) in zip(cellRow, boardRow):
+        for (box, digit,pDigit) in zip(cellRow, boardRow,pBoardRow):
             # unpack the cell coordinates
             startX, startY, endX, endY = box
             # compute the coordinates of where the digit will be drawn
@@ -97,9 +97,15 @@ def draw_sudoku_solution(image,cells,solution,puzzle = None):
             textY = int((endY - startY) * -0.2)
             textX += startX
             textY += endY
+            showDigit = digit
+            color = (0, 255, 255)
+            if(type(pDigit) != type(None)):
+                color = (255,0,0)
+                showDigit = pDigit
+            digitStr = "" if type(showDigit) == type(None) else str(showDigit)
             # draw the result digit on the Sudoku puzzle image
-            cv2.putText(image, str(digit), (textX, textY),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+            cv2.putText(image, digitStr, (textX, textY),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
 if __name__ == "__main__":
     
@@ -123,7 +129,9 @@ if __name__ == "__main__":
     image = cv2.imread(args["image"])
     image = imutils.resize(image, width=600)
 
-    solve_result = solve_sudoku(model,image,debug=args["debug"] > 0)
+    debug=args["debug"] > 0
+
+    solve_result = solve_sudoku(model,image,debug=debug)
 
     puzzle =solve_result["puzzle"] 
     solution =solve_result["solution"] 
