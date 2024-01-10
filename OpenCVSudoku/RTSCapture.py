@@ -1,6 +1,7 @@
 # https://github.com/ruokid/pycv4rtsp/blob/master/RTSCapture.py
 
 # python3 RTSCapture.py "rtsp://admin:hik123456@192.168.31.64/h264/ch1/main/av_stream"
+# python3 RTSCapture.py "rtsp://admin:admin@192.168.31.60:8554/live"
 
 """经过测试 cv2.VideoCapture 的 read 函数并不能获取实时流的最新帧
 而是按照内部缓冲区中顺序逐帧的读取，opencv会每过一段时间清空一次缓冲区
@@ -34,6 +35,7 @@ class RTSCapture(cv2.VideoCapture):
         or
         rtscap = RTSCapture.create("http://example.com/live/1.m3u8", "http://")
         """
+        print(f"连接视频流{url}")
         rtscap = RTSCapture(url)
         rtscap.frame_receiver = threading.Thread(target=rtscap.recv_frame, daemon=True)
         rtscap.schemes.extend(schemes)

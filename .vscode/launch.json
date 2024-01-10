@@ -14,8 +14,22 @@
             "python": "e:\\Users\\holid\\anaconda3\\envs\\tf-cv2\\python.exe",
             "cwd": "${fileDirname}",
             "args":[
-                "--model","output/digit_classifier.h5",
-                "--image","Sudoku_puzzle.jpg"
+                "--model","output/print_digit_classifier.h5",
+                "--image","Sudoku_puzzle2.jpg",
+                "-d","1",
+            ],
+        },
+        {
+            "name": "Python: RTSCapture",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/OpenCVSudoku/test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "python": "e:\\Users\\holid\\anaconda3\\envs\\tf-cv2\\python.exe",
+            "cwd": "${workspaceFolder}/OpenCVSudoku",
+            "args":[
+                "rtsp://admin:admin@192.168.31.60:8554/live",
             ],
         }
     ]

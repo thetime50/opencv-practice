@@ -2,6 +2,18 @@
 
 https://www.pyimagesearch.com/2020/08/10/opencv-sudoku-solver-and-ocr/
 
+## 文件说明
+
+- solve_sudoku_puzzle.py 单张图片数独求解
+- solve_sudoku_stream.py 视频流数独求解
+- train_digit_classifier.py 视频流数独求解 使用进程池 还没添加解析
+- train_digit_classifier2.py 视频流数独求解 单线程循环处理
+- train_digit_classifier3.py 视频流数独求解 使用 RTSCapture 求解部分可优化
+- RTSCapture 使用子线程循环读取cv.VideoCapture视频帧
+
+- make_print_dataset.py 创建打印数数字据集 混合数字数据集
+- train_digit_classifier.py 训练数字识别分类模型
+
 ## Sudokunet.py
 [file->](.\pyimagesearch\models\SudokuNet.py)
 

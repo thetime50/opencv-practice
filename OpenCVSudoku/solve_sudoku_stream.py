@@ -5,11 +5,11 @@ import numpy as np
 import os
 import time
 
-print(True)
+print("stream file")
 
 
-CAMERA_RUL = 'rtsp://admin:admin@192.168.1.148:8554/live'  # ip摄像头 #帧率不太对
-# CAMERA_RUL = 'rtsp://admin:admin@192.168.31.60:8554/live'  # ip摄像头 #帧率不太对
+# CAMERA_RUL = 'rtsp://admin:admin@192.168.1.148:8554/live'  # ip摄像头 #帧率不太对
+CAMERA_RUL = 'rtsp://admin:admin@192.168.31.60:8554/live'  # ip摄像头 #帧率不太对
 
 import threading
 from multiprocessing import Process, Queue,Pool,Manager
@@ -156,14 +156,14 @@ if __name__ == '__main__':
     # imgPutQ = Queue()
     imgIntQ = Manager().Queue()
     imgPutQ = Manager().Queue()
-
-    mp = Process(target=mainProcess, args=(imgIntQ,))
-    pp = Process(target=putProcess, args=(imgPutQ,))
+    
+    mp = Process(name="mainProcess",target=mainProcess, args=(imgIntQ,)) # 获取视频进程
+    pp = Process(name="putProcess",target=putProcess, args=(imgPutQ,)) # 显示结果进程
     mp.start()
     pp.start()
 
     poolcnt = 2
-    fpo = Pool(poolcnt)
+    fpo = Pool(poolcnt) # 处理进程
     fpo.map(fcProcess, [(imgIntQ,imgPutQ)]*poolcnt)
 
     mp.join()

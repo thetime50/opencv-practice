@@ -7,7 +7,7 @@ from tensorflow.keras.models import load_model
 from solve_sudoku_puzzle import solve_sudoku
 from solve_sudoku_puzzle import draw_sudoku_solution
 
-CAMERA_RUL = 'rtsp://admin:admin@192.168.1.148:8554/live'  # ip摄像头 #帧率不太对
+CAMERA_RUL = 'rtsp://admin:admin@192.168.31.60:8554/live'  # ip摄像头 #帧率不太对
 MODEL_PATH = "output/digit_classifier.h5"
 
 model = None

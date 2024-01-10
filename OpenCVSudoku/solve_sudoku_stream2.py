@@ -7,7 +7,7 @@ import time
 from tensorflow.keras.models import load_model
 from solve_sudoku_puzzle import solve_sudoku
 
-CAMERA_RUL = 'rtsp://admin:admin@192.168.1.148:8554/live'  # ip摄像头 #帧率不太对
+CAMERA_RUL = 'rtsp://admin:admin@192.168.1.60:8554/live'  # ip摄像头 #帧率不太对
 
 print(True)
 
