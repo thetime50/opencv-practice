@@ -4,6 +4,23 @@ import cv2 as cv
 import numpy as np
 import os
 import time
+import argparse 
+import copy
+from pyimagesearch.sudoku import find_puzzle, analysis_pussle_image
+from tensorflow.keras.models import load_model
+from sudoku import Sudoku
+from solve_sudoku_puzzle import draw_sudoku_solution_on_src
+
+'''
+第一阶段
+数独识别提取
+结果: 数独轮廓 单元格位置 数独数组
+第二阶段
+求解
+结果：j结果数组
+第三阶段
+画图 逆变换 显示
+'''
 
 print("stream file")
 
@@ -33,13 +50,13 @@ class Producer(DummyThread):
         # 调用cv方法获取cap的视频帧（帧：每秒多少张图片）
         # fps = self.cap.get(cv.CAP_PROP_FPS)
         self.fps = self.cap.get(cv.CAP_PROP_FPS)
-        print(self.fps)
+        print(f"fps:{self.fps}")
         # 获取cap视频流的每帧大小
         self.width = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
         
         self.size = (self.width, self.height)
-        print(self.size)
+        print(f"size:{self.size}")
 #         定义编码格式mpge-4
         # self.fourcc = cv.VideoWriter_fourcc('M', 'P', '4', '2')
         # 定义视频文件输入对象
@@ -83,11 +100,25 @@ class Producer(DummyThread):
 
 class ImgWrap:
     cnt = 0
-    def __init__(self,img):
+    def __init__(self,
+        img, # 原图
+        contour=None, # 轮廓
+        correctionImgShape = None, # 修正后的形状
+        cellLocs=None, # 单元格位置
+        puzzle=None, # 题目
+        solution=None, # 结果
+    ):
         self.timestamp = time.time()
         self.serial=ImgWrap.cnt
         ImgWrap.cnt+=1
+
         self.img = img
+        self.contour = contour
+        # puzzleImage
+        self.correctionImgShape = correctionImgShape
+        self.cellLocs = cellLocs
+        self.puzzle = puzzle
+        self.solution = solution
 
 def mainProcess(imgIntQ):
     def init(pd):
@@ -97,85 +128,145 @@ def mainProcess(imgIntQ):
         return state,image
     ## start
     rtmp_str = CAMERA_RUL
-    # producer = Producer(rtmp_str,init=init,ring=ring)  # 开个线程
-    producer = Producer(rtmp_str,'load',init=init,ring=ring)  # 开个线程
+    producer = Producer(rtmp_str,'load',init=init,ring=ring)
     producer.start()
     print("mpend")
 
 
 def fcProcess(para):
-    (imgIntQ,imgPutQ) = para
+    (model,imgIntQ,imgPutQ,imgSolveQ) = para
+
     while True:
         try:
-            image = imgIntQ.get(timeout=300)
-            if(image is None):
+            iw = imgIntQ.get(timeout=300)
+            if(iw is None):
                 print("fc queue is None")
                 # break
+            else:
+                try:
+                    fp_result = find_puzzle(iw.img)
+                    
+                    puzzleImage = fp_result["puzzle"]# 透视修正后的彩图
+                    warped = fp_result["warped"]# 透视修正后的灰度图
+                    puzzleCnt = fp_result["puzzleCnt"] # 原图轮廓
+                    
+                    cellLocs, puzzle = analysis_pussle_image(
+                        warped,
+                        puzzleCnt,
+                        model
+                    )
+
+                    iw.contour = puzzleCnt
+                    iw.correctionImgShape = puzzleImage.shape
+                    iw.cellLocs = cellLocs
+                    iw.puzzle = puzzle
+                    
+                    imgSolveQ.put(iw)
+                except Exception as e:
+                    pass
+                imgPutQ.put(iw)
+
         except Exception as error:#,Argument
             print("****************************",error)
             # break
         # print('fp',image)
-        imgPutQ.put(image)
 
-def putProcess(imgPutQ):
+def solveSodokuProcess(imgSolveQ):
+    while 1:
+        iw = imgSolveQ.get()
+        if(iw is None):
+            continue
+        solution = Sudoku(3,3,iw.puzzle)
+        iw.solution = solution.board
+
+def putProcess(imgPutQ,imgSolutionQ):
     buff = []
     buffSize = 5
-    before = 0
+    before = -1
     while True:
         try:
-            iw = imgPutQ.get(timeout=300)
-            if(iw is None):
-                print("pp queue is None")
-                break
+            iw = imgPutQ.get(timeout=10)
+            siw = imgSolutionQ.get(timeout = 0)
+            if(not iw is None):
+                pass # 插入帧
+                if(len(buff)<=0):
+                    buff.append(iw)
+                else:
+                    if(iw.serial == buff[0].serial-1 ):
+                        buff.insert(0,iw)
+                    elif(iw.serial > buff[0].serial):
+                        for i in range(buff):
+                            if(iw.serial > buff[i].serial):
+                                buff.insert(i+1,iw)
+                                break
+                                
+            shim = buff[0]
+            if(shim.serial <= before+1 or len(buff) > buffSize):
+                buff.pop()
+                before = shim.serial
+                # draw
+                if(siw and np.all( siw.puzzle == shim.puzzle )):
+                    draw_sudoku_solution_on_src(
+                        shim.img,
+                        shim.contour,
+                        shim.correctionImgShape,
+                        shim.cellLocs,
+                        shim.puzzle,
+                        shim.solution
+                    )
+                cv.imshow('pnp',shim.img)
+                cv.waitKey(10)
         except Exception as error:#,Argument
             print("****************************",error)
             break
-        # print(iw)
-        # print("pp",iw.img.shape)
-        # [3,4,5,6]
-        if(len(buff)==0):
-            buff.append(iw)
-        else:
-            for i in range(len(buff)):
-                index = len(buff)-i-1
-                if(iw.serial >= buff[index].serial):
-                    buff.insert(index+1,iw)
-                    break
-        if (buff[0].serial <= before+1) or len(buff)>=buffSize:
-            shim = buff.pop(0)
-            before = shim.serial
-            cv.imshow('pnp',shim.img)
-            cv.waitKey(10)
-        # im = np.full((30,30,3),200,np.uint8)
-        # cv.imshow('pnp',im)
     cv.destroyAllWindows()
 
 if __name__ == '__main__':
     print('run program')
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-m", "--model", required=True,
+        help="path to trained digit classifier")
+    ap.add_argument("-i", "--image", required=True,
+        help="path to input Sudoku puzzle image")
+    args = vars(ap.parse_args())
+
+    model = load_model(args["model"])
+
     # imgIntQ = Queue()
     # imgPutQ = Queue()
     imgIntQ = Manager().Queue()
     imgPutQ = Manager().Queue()
+    imgSolveQ = Manager().Queue()
+    imgSolutionQ = Manager().Queue()
     
     mp = Process(name="mainProcess",target=mainProcess, args=(imgIntQ,)) # 获取视频进程
-    pp = Process(name="putProcess",target=putProcess, args=(imgPutQ,)) # 显示结果进程
+    pp = Process(name="putProcess",target=putProcess, args=(imgPutQ,imgSolutionQ)) # 显示结果进程
+    ssp = Process(name="solveSodokuProcess",target=solveSodokuProcess, args=(imgSolveQ,imgSolutionQ)) # 显示结果进程
     mp.start()
     pp.start()
+    ssp.start()
 
     poolcnt = 2
     fpo = Pool(poolcnt) # 处理进程
-    fpo.map(fcProcess, [(imgIntQ,imgPutQ)]*poolcnt)
+    fpo.map(fcProcess, [(model,imgIntQ,imgPutQ,imgSolveQ)]*poolcnt)
 
     mp.join()
     print("mp exit")
 
     imgIntQ.close()
     imgPutQ.close()
+    imgSolveQ.close()
+    imgSolutionQ.close()
 
     # fpo.close()
     # fpo.terminate()
     fpo.join()
     print("fpo exit")
+
+    # ssp.close()
+    # ssp.terminate()# 强制退出
+    ssp.join()
+    print("ssp exit")
 
     # pp.close()
     # pp.terminate()# 强制退出

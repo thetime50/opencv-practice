@@ -7,6 +7,7 @@ from skimage.segmentation import clear_border
 import numpy as np
 import imutils
 import cv2
+from tensorflow.keras.preprocessing.image import img_to_array
 
 def find_puzzle(image, debug=False):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -67,14 +68,14 @@ def find_puzzle(image, debug=False):
         cv2.waitKey(0)
     # return a 2-tuple of puzzle in both RGB and grayscale
     return {
-        "puzzle":puzzle,
-        "warped":warped,
+        "puzzle":puzzle,# 透视修正后的彩图
+        "warped":warped,# 透视修正后的灰度图
         "puzzleCnt":puzzleCnt,#题目轮廓
     }
 
 def debugShow(title,img,size=(250,250),iswait=True):
     cv2.namedWindow(title, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(title,**size)
+    cv2.resizeWindow(title,*size)
     cv2.imshow(title, img)
     iswait and cv2.waitKey(0)
 
@@ -147,6 +148,58 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None)
         debugShow("Digit" + cellstr, cv2.resize(digit, (28, 28)))
     # return the digit to the calling function
     return digit
+
+def analysis_pussle_image(
+        warped, # 灰度图像
+        puzzleCnt, # 数独轮廓
+        model, # 识别模型
+        cellCb = None, # 回调
+        debug = False,
+    ):
+    # initialize our 9x9 Sudoku board
+    board = np.zeros((9, 9), dtype="int") # 9x9 数独矩阵
+
+    stepX = warped.shape[1] / 9
+    stepY = warped.shape[0] / 9
+
+    cellLocs = [] # puzzle cells ROI
+
+    for y in range(0, 9):
+        row = [] # row ROIs
+        for x in range(0, 9):
+            startX = round(x * stepX)
+            startY = round(y * stepY)
+            endX = round((x + 1) * stepX)
+            endY = round((y + 1) * stepY)
+            row.append((startX, startY, endX, endY))
+            
+            cell = warped[startY:endY, startX:endX] # 原图裁切出单元格
+            digit = extract_digit(cell,shape = (28, 28), border=[2,2,2,2] , debug=debug,position = (x,y)) # 是字符单元格
+            # verify that the digit is not empty
+            continue_ =  cellCb and cellCb({
+                "cellLocs" : cellLocs, #每个单元格位置
+                "xindex":x,
+                "yindex":y,
+                "digit":digit,
+                
+                "puzzleCnt" : puzzleCnt, # 数独范围
+            })
+            if continue_:
+                continue
+            if digit is not None:
+                roi = digit # cv2.resize(digit, (28, 28))
+                roi = roi.astype("float") / 255.0
+                roi = img_to_array(roi)
+                roi = np.expand_dims(roi, axis=0) # 从第几个维度的位置插入一个维度 [[item]]
+                # classify the digit and update the Sudoku board with the
+                # prediction
+                # presult = model.predict(roi).argmax(axis=1)) # [[0的期望,1的期望...]]
+                # presult.argmax(axis=1)) # 在第1维做最值运算
+                pred = model.predict(roi).argmax(axis=1)[0] # ocr 识别数字
+                board[y, x] = pred
+        # add the row to our cell locations
+        cellLocs.append(row)
+    return cellLocs, board
 
 if __name__ == "__main__":
     find_puzzle(cv2.imread("./sudoku_puzzle.jpg"),True)

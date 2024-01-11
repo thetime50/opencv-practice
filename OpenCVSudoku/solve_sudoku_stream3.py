@@ -94,7 +94,7 @@ def producer(state,key,image):
             cv2.drawContours(image, [puzzleCnt], -1, (0,255,0), 2)
 
             puzzleDrawings = np.zeros_like(puzzleImage)
-            draw_sudoku_solution(puzzleDrawings,cellLocs,solution,puzzle)
+            draw_sudoku_solution(puzzleDrawings,cellLocs,puzzle.board,solution.board)
 
             heightImg = puzzleImage.shape[0] # 校正后图片高度
             widthImg = puzzleImage.shape[1] # 校正后图片宽度
