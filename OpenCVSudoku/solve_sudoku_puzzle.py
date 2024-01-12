@@ -109,10 +109,6 @@ def draw_sudoku_solution_on_src(
     mask = np.any(tempImg,axis=-1)
     srcImg[mask] = tempImg[mask]
 
-    cv2.imshow("Sudoku Result *", srcImg)
-    # cv2.imshow("Sudoku Result **", t)
-    cv2.waitKey(0)
-
 if __name__ == "__main__":
     
     # construct the argument parser and parse the arguments

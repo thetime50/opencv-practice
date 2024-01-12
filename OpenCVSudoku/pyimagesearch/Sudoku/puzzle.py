@@ -164,6 +164,8 @@ def analysis_pussle_image(
 
     cellLocs = [] # puzzle cells ROI
 
+    ocrCells = []
+    ocrRoi = []
     for y in range(0, 9):
         row = [] # row ROIs
         for x in range(0, 9):
@@ -190,15 +192,21 @@ def analysis_pussle_image(
                 roi = digit # cv2.resize(digit, (28, 28))
                 roi = roi.astype("float") / 255.0
                 roi = img_to_array(roi)
-                roi = np.expand_dims(roi, axis=0) # 从第几个维度的位置插入一个维度 [[item]]
+                # roi = np.expand_dims(roi, axis=0) # 从第几个维度的位置插入一个维度 [[item]]
+                
                 # classify the digit and update the Sudoku board with the
                 # prediction
                 # presult = model.predict(roi).argmax(axis=1)) # [[0的期望,1的期望...]]
                 # presult.argmax(axis=1)) # 在第1维做最值运算
-                pred = model.predict(roi).argmax(axis=1)[0] # ocr 识别数字
-                board[y, x] = pred
+                # pred = model.predict(roi).argmax(axis=1)[0] # ocr 识别数字 一次15ms
+                # board[y, x] = pred
+                ocrCells.append((x,y))
+                ocrRoi.append(roi)
         # add the row to our cell locations
         cellLocs.append(row)
+    predictions = model.predict(np.stack(ocrRoi)).argmax(axis=1) # 30ms
+    for (x,y),pred in zip(ocrCells,predictions):
+        board[y,x] = pred
     return cellLocs, board
 
 if __name__ == "__main__":
