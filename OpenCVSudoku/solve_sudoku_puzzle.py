@@ -12,7 +12,7 @@
 
 import h5py # 处理imutils冲突
 from pyimagesearch.sudoku import analysis_pussle_image
-from pyimagesearch.sudoku import find_puzzle
+from pyimagesearch.sudoku import find_puzzle,get_cell_locs
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from sudoku import Sudoku
@@ -90,11 +90,11 @@ def draw_sudoku_solution_on_src(
     srcImg, # 原图
     contour, # 轮廓
     correctionImgShape, # 透视还原后彩图shape
-    cellLocs, # 单元格位置
     puzzleArr, # 题目数组
     solutionArr # 答案数组
 ):
     tempImg = np.zeros(correctionImgShape,"uint8")
+    cellLocs = get_cell_locs(correctionImgShape)
     draw_sudoku_solution(
         tempImg,
         cellLocs,
@@ -156,7 +156,6 @@ if __name__ == "__main__":
         solutionImg,
         puzzleCnt,
         puzzleImage.shape,
-        cellLocs,
         puzzle.board,
         solution.board
     )

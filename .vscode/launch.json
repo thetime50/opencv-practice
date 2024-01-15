@@ -14,9 +14,9 @@
             "python": "e:\\Users\\holid\\anaconda3\\envs\\tf-cv2\\python.exe",
             "cwd": "${fileDirname}",
             "args":[
-                "--model","output/print_digit_classifier.h5",
+                "--model","output/mixin_digit_classifier.h5",
                 "--image","Sudoku_puzzle2.jpg",
-                "-d","1",
+                // "-d","1",
             ],
         },
         {

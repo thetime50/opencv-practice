@@ -11,9 +11,9 @@ from tensorflow.keras.models import load_model
 from sudoku import Sudoku
 from solve_sudoku_puzzle import draw_sudoku_solution_on_src
 from imageLike.imageHash import image_d_hash,hash_diff
-# import sys
-# import traceback
-# import inspect
+import sys
+import traceback
+import inspect
 
 # python solve_sudoku_stream.py --model output/mixin_digit_classifier.h5
 
@@ -35,6 +35,8 @@ print("stream file")
 
 # CAMERA_RUL = 'rtsp://admin:admin@192.168.1.148:8554/live'  # ip摄像头 #帧率不太对
 CAMERA_RUL = 'rtsp://admin:admin@192.168.31.60:8554/live'  # ip摄像头 #帧率不太对
+
+MAX_QUEUE_SIZE = 6
 
 # import threading
 from multiprocessing import Process, Queue,Pool,Manager
@@ -142,7 +144,8 @@ def mainProcess(imgIntQ):
     def init(pd):
         pass
     def ring(state,key,image):
-        imgIntQ.put(ImgWrap(image))
+        if(imgIntQ.qsize()<MAX_QUEUE_SIZE):
+            imgIntQ.put(ImgWrap(image))
         return state,image
     ## start
     rtmp_str = CAMERA_RUL
@@ -152,7 +155,6 @@ def mainProcess(imgIntQ):
 
 def imgLike(hash1,hash2):
     d = hash_diff(hash1,hash2)/(hash2.shape[0]*hash2.shape[1])
-    print('hash_diff',d)
     return d<0.3
     #位移 缩放 旋转 畸变 亮度 时间
 def contourLike(contour1,contour2):
@@ -211,10 +213,12 @@ def fcProcess(para):
                         oldImgHash = imgHash
                 except Exception as e:
                     # 没有找到矩形
+                    imgSolveM.value = None
                     oldImgHash = None
                     oldContour = None
                     pass
-                imgPutQ.put(iw)
+                if(imgPutQ.qsize() < MAX_QUEUE_SIZE):
+                    imgPutQ.put(iw)
 
         except Exception as error:#,Argument
             print("****************************",error)
@@ -223,33 +227,39 @@ def fcProcess(para):
 
 # 耗时的少量的处理
 def solveSudokuProcess(modelPath,imgSolveM,imgSolutionM):
-    oldSudokuSerial = None
+    solveSudokuSerial = None
     model = load_model(modelPath)
     while 1:
         try:
             iw = imgSolveM.value
             if(iw is None):
                 continue
-            if(oldSudokuSerial == iw.sudokuSerial):
+            if(solveSudokuSerial == iw.sudokuSerial):
                 continue
-            oldSudokuSerial = iw.sudokuSerial
-            cellLocs, puzzle = analysis_pussle_image(
+            cellLocs, puzzleNp = analysis_pussle_image(
                 iw.warped,
                 iw.contour,
                 model
             )
-            solution = Sudoku(3,3,puzzle.tolist())
-
-            iw.cellLocs = cellLocs
-            iw.puzzle = puzzle.tolist()
-            iw.solution = solution.board
-            imgSolutionM.value = iw
+            puzzle = Sudoku(3,3,puzzleNp.tolist())
+            solution = puzzle.solve()
+            solutionStr = str(solution)
+            if("SOLVED" in solutionStr):
+                solveSudokuSerial = iw.sudokuSerial
+                iw.cellLocs = cellLocs
+                iw.puzzle = puzzle.board
+                iw.solution = solution.board
+                imgSolutionM.value = iw
+            else: # 延时再解一次
+                print(solutionStr.split("---------------------------")[1])
+                puzzle.show()
+                time.sleep(0.3)
         except Exception as error:#,Argument
-            print(f"**** ERROR: ****",error)
-            # print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
-            # et, ev, tb = sys.exc_info()
-            # msg = ''.join(traceback.format_exception(et, ev, tb))
-            # print(msg)
+            # print(f"**** ERROR: ****",error)
+            print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
+            et, ev, tb = sys.exc_info()
+            msg = ''.join(traceback.format_exception(et, ev, tb))
+            print(msg)
 
 def putProcess(imgPutQ,imgSolutionM):
     buff = []
@@ -282,7 +292,6 @@ def putProcess(imgPutQ,imgSolutionM):
                         shim.img,
                         shim.contour,
                         shim.correctionImgShape,
-                        siw.cellLocs,
                         siw.puzzle,
                         siw.solution
                     )
@@ -291,12 +300,12 @@ def putProcess(imgPutQ,imgSolutionM):
                 cv.imshow('pnp',shim.img)
                 cv.waitKey(10)
         except Exception as error:#,Argument
-            print(f"**** ERROR: ****",error)
-            # print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
-            # et, ev, tb = sys.exc_info()
-            # msg = ''.join(traceback.format_exception(et, ev, tb))
-            # print(msg)
-            break # 让Pool返回就能正常退出了
+            # print(f"**** ERROR: ****",error)
+            print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
+            et, ev, tb = sys.exc_info()
+            msg = ''.join(traceback.format_exception(et, ev, tb))
+            print(msg)
+            # break # 让Pool返回就能正常退出了
     cv.destroyAllWindows()
 
 if __name__ == '__main__':
@@ -324,7 +333,7 @@ if __name__ == '__main__':
     pp.start()
     ssp.start()
 
-    poolcnt = 2
+    poolcnt = 1
     fpo = Pool(poolcnt) # 处理进程
     fpo.map(fcProcess, [(imgIntQ,imgPutQ,imgSolveM)]*poolcnt)
 

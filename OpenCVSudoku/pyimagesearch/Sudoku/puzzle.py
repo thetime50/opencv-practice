@@ -87,12 +87,12 @@ def debugShow(title,img,size=(250,250),iswait=True):
 # border=[t,b,l,r]
 def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None):
     cellstr = (str(position) if position else "")
-    if np.max(cell) - np.min(cell) <255*0.25: # 对比度太低
-        return None
     # thresh = cv2.threshold(cell, 0, 255, # 自动阈值
     #                     cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1] # 二进制 大津算法 # 返回 阈值,图像
     thresh = cell
     thresh = clear_border(thresh) # 清除边框
+    if np.max(cell) - np.min(cell) <255*0.25: # 对比度太低
+        return None
     
     if debug:
         debugShow("Cell Thresh" + cellstr, np.concatenate((cell,thresh),axis=1), (500,250))
@@ -108,18 +108,18 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None)
     mask = np.zeros(thresh.shape, dtype="uint8")
     cv2.drawContours(mask, [c], -1, 255, -1)
 
-    (h, w) = thresh.shape
-    (ch,cw) = cell.shape
-    # percentFilled = cv2.countNonZero(mask) / float(w * h) # 轮廓占单元格的比例
-    # if percentFilled**0.5 < 0.04: # 面积比线性转换
-    #     return None
-    if(h<ch/3 and w<cw/4):
+    (th, tw) = thresh.shape
+    x, y, w, h = cv2.boundingRect(c)
+    percentFilled = cv2.countNonZero(mask) / float(th* tw) # 轮廓占单元格的比例
+    if percentFilled < 1/28: # 面积比线性转换
+        return None
+    if(x > tw*3/4 or x+w < tw/4 or \
+       y > th*3/4 or y+h < th/4):
         return None
     # apply the mask to the thresholded cell
     digit = cv2.bitwise_and(thresh, thresh, mask=mask) # 用最大的轮廓做一次蒙版 数字笔画是一体的 避免干扰
 
     if type(shape) != type(None):
-        x, y, w, h = cv2.boundingRect(c)
 
         mlen = max(w, h)
         ry = y + (h - mlen)//2
@@ -156,6 +156,23 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None)
     # return the digit to the calling function
     return digit
 
+def get_cell_locs(shape):
+    stepX = shape[1] / 9
+    stepY = shape[0] / 9
+
+    cellLocs = [] # puzzle cells ROI
+
+    for y in range(0, 9):
+        row = [] # row ROIs
+        for x in range(0, 9):
+            startX = round(x * stepX)
+            startY = round(y * stepY)
+            endX = round((x + 1) * stepX)
+            endY = round((y + 1) * stepY)
+            row.append((startX, startY, endX, endY))
+        cellLocs.append(row)
+    return cellLocs
+
 def analysis_pussle_image(
         warped, # 灰度图像
         puzzleCnt, # 数独轮廓
@@ -166,10 +183,10 @@ def analysis_pussle_image(
     # initialize our 9x9 Sudoku board
     board = np.zeros((9, 9), dtype="int") # 9x9 数独矩阵
 
-    blockSize = max(11,min(warped.shape)//8)
+    blockSize = max(11,min(warped.shape)//5)
     if(blockSize%2==0): blockSize+=1
     thresh = cv2.adaptiveThreshold(warped,255, # 自动阈值
-        cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,blockSize,0)# 高斯权重 阈值处理方式 计算半径 减常量
+        cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY_INV,blockSize,5)# 高斯权重 阈值处理方式 计算半径 减常量
     cv2.imshow("thresh",thresh)
     cv2.waitKey(1)
     stepX = thresh.shape[1] / 9
