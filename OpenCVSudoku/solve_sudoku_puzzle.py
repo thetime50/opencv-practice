@@ -108,6 +108,7 @@ def draw_sudoku_solution_on_src(
     tempImg = cv2.warpPerspective(tempImg, src2des,(srcImg.shape[1],srcImg.shape[0]))
     mask = np.any(tempImg,axis=-1)
     srcImg[mask] = tempImg[mask]
+    cv2.drawContours(srcImg,[contour],-1,(100,255,100),2)
 
 if __name__ == "__main__":
     

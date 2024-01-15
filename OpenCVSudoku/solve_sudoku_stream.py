@@ -2,7 +2,7 @@
 
 import cv2 as cv
 import numpy as np
-import os
+# import os
 import time
 import argparse 
 import copy
@@ -11,9 +11,9 @@ from tensorflow.keras.models import load_model
 from sudoku import Sudoku
 from solve_sudoku_puzzle import draw_sudoku_solution_on_src
 from imageLike.imageHash import image_d_hash,hash_diff
-import sys
-import traceback
-import inspect
+# import sys
+# import traceback
+# import inspect
 
 # python solve_sudoku_stream.py --model output/mixin_digit_classifier.h5
 
@@ -36,7 +36,7 @@ print("stream file")
 # CAMERA_RUL = 'rtsp://admin:admin@192.168.1.148:8554/live'  # ip摄像头 #帧率不太对
 CAMERA_RUL = 'rtsp://admin:admin@192.168.31.60:8554/live'  # ip摄像头 #帧率不太对
 
-import threading
+# import threading
 from multiprocessing import Process, Queue,Pool,Manager
 
 class DummyThread:
@@ -96,7 +96,7 @@ class Producer(DummyThread):
                 ret, image = self.cap.read()
                 if(self.ring):
                     self.state,image = self.ring(self.state,key,image)
-                cv.imshow('dis', image)
+                # cv.imshow('dis', image)
         # except Exception as e:
         #     print("error",repr(e))
         finally:
@@ -153,13 +153,30 @@ def mainProcess(imgIntQ):
 def imgLike(hash1,hash2):
     d = hash_diff(hash1,hash2)/(hash2.shape[0]*hash2.shape[1])
     print('hash_diff',d)
-    return d<0.08
+    return d<0.3
     #位移 缩放 旋转 畸变 亮度 时间
+def contourLike(contour1,contour2):
+    # vectors = []
+    c1 = contour1
+    c2 = contour2
+    if(len(c1.shape) == 3):
+        c1 = np.reshape(c1,(4,2))
+    if(len(c2.shape) == 3):
+        c2 = np.reshape(c2,(4,2))
+    length = 0
+    for p1,p2 in zip(c1,c2):
+        vi = np.array(p2) - np.array(p1)
+        l = np.linalg.norm(vi)
+        length += l
+    rate = length / cv.arcLength(contour1,closed=True)
+    return rate<0.1
+
 
 # 实时批量处理
 def fcProcess(para):
     (imgIntQ,imgPutQ,imgSolveM) = para
     oldImgHash = None
+    oldContour = None 
     while True:
         try:
             iw = imgIntQ.get(timeout=300)
@@ -178,18 +195,24 @@ def fcProcess(para):
                     iw.warped = warped
                     iw.correctionImgShape = puzzleImage.shape
                     imgHash = image_d_hash(warped)
+                    clike = oldContour is not None and contourLike(oldContour,puzzleCnt)
+                    ilike = clike and oldImgHash is not None and imgLike(oldImgHash,imgHash)
                     # 加一个求解序号 相同画面用同一个序号
-                    if(oldImgHash is not None and imgLike(oldImgHash,imgHash)):
+                    if( ilike):
+
                         iw.setLikeSudoku()
                         imgSolveM.value = iw
+                        oldContour = puzzleCnt
                         oldImgHash = imgHash
                     else:
                         iw.setNewSudoku()
                         imgSolveM.value = iw
+                        oldContour = puzzleCnt
                         oldImgHash = imgHash
                 except Exception as e:
                     # 没有找到矩形
                     oldImgHash = None
+                    oldContour = None
                     pass
                 imgPutQ.put(iw)
 
@@ -222,9 +245,11 @@ def solveSudokuProcess(modelPath,imgSolveM,imgSolutionM):
             iw.solution = solution.board
             imgSolutionM.value = iw
         except Exception as error:#,Argument
-            print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
-            et, ev, tb = sys.exc_info()
-            print(msg = ''.join(traceback.format_exception(et, ev, tb)))
+            print(f"**** ERROR: ****",error)
+            # print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
+            # et, ev, tb = sys.exc_info()
+            # msg = ''.join(traceback.format_exception(et, ev, tb))
+            # print(msg)
 
 def putProcess(imgPutQ,imgSolutionM):
     buff = []
@@ -261,12 +286,16 @@ def putProcess(imgPutQ,imgSolutionM):
                         siw.puzzle,
                         siw.solution
                     )
+                elif(shim.contour is not None):
+                    cv.drawContours(shim.img,[shim.contour],-1,(100,255,100),2)
                 cv.imshow('pnp',shim.img)
                 cv.waitKey(10)
         except Exception as error:#,Argument
-            print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
-            et, ev, tb = sys.exc_info()
-            print(msg = ''.join(traceback.format_exception(et, ev, tb)))
+            print(f"**** ERROR: ****",error)
+            # print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
+            # et, ev, tb = sys.exc_info()
+            # msg = ''.join(traceback.format_exception(et, ev, tb))
+            # print(msg)
             break # 让Pool返回就能正常退出了
     cv.destroyAllWindows()
 
