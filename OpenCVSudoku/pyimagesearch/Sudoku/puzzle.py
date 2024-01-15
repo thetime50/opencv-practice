@@ -32,7 +32,9 @@ def find_puzzle(image, debug=False):
         approx = cv2.approxPolyDP(c, 0.02 * peri, True) # 多边形拟合
         approxArea = cv2.contourArea(approx)
         squareArea = (peri/4)**2
-        if len(approx == 4) and approxArea > squareArea*0.6 and approxArea>28*28*81 * 0.8: # 顶点检查 面积检查
+        if(approxArea<28*28*81 * 0.8):
+            break
+        if len(approx == 4) and approxArea > squareArea*0.6: # 顶点检查 面积检查
             puzzleCnt = approx
             break
     
@@ -40,8 +42,9 @@ def find_puzzle(image, debug=False):
         raise Exception(("Could not find Sudoku pussle outline."
             "Try debugging Your thresholding and contour steps."))
     
+    # 四点排序
     cntSort = np.zeros_like(puzzleCnt)
-    cntSum = np.copy(puzzleCnt).sum(2)
+    cntSum = np.copy(puzzleCnt).sum(2) # 这个加2好像没啥用
     cntSort[0] = puzzleCnt[np.argmin(cntSum)] # [0,0]
     cntSort[2] = puzzleCnt[np.argmax(cntSum)]  # [w,h]
     diff = np.diff(puzzleCnt)
@@ -100,7 +103,7 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None)
         return None
 
     
-    c = max(cnts, key=cv2.contourArea) # 获取面积最大的轮廓
+    c = max(cnts, key=cv2.contourArea) # 获取面积最大的轮廓 todo 包含在中心2/4处
     mask = np.zeros(thresh.shape, dtype="uint8")
     cv2.drawContours(mask, [c], -1, 255, -1)
 
@@ -145,7 +148,7 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None)
     # check to see if we should visualize the masking step
     if debug:
         # cv2.imshow("Digit" + cellstr, digit)
-        debugShow("Digit" + cellstr, cv2.resize(digit, (28, 28)))
+        debugShow("Digit" + cellstr, cv2.resize(digit, (28, 28))) # ,interpolation=cv2.INTER_AREA
     # return the digit to the calling function
     return digit
 
