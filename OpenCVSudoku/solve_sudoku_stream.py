@@ -228,14 +228,20 @@ def fcProcess(para):
 # 耗时的少量的处理
 def solveSudokuProcess(modelPath,imgSolveM,imgSolutionM):
     solveSudokuSerial = None
+    solveCnt = 0
     model = load_model(modelPath)
     while 1:
         try:
+            time.sleep(0.02)
             iw = imgSolveM.value
             if(iw is None):
                 continue
             if(solveSudokuSerial == iw.sudokuSerial):
-                continue
+                if( solveCnt > 1):
+                    continue
+            else:
+                solveCnt = 0
+            print(f"sudokuSerial:{iw.sudokuSerial} solveCnt:{solveCnt}")
             cellLocs, puzzleNp = analysis_pussle_image(
                 iw.warped,
                 iw.contour,
@@ -245,15 +251,25 @@ def solveSudokuProcess(modelPath,imgSolveM,imgSolutionM):
             solution = puzzle.solve()
             solutionStr = str(solution)
             if("SOLVED" in solutionStr):
+                ow = imgSolutionM.value
                 solveSudokuSerial = iw.sudokuSerial
                 iw.cellLocs = cellLocs
                 iw.puzzle = puzzle.board
                 iw.solution = solution.board
                 imgSolutionM.value = iw
-            else: # 延时再解一次
+                if(ow is not None and ow.sudokuSerial == iw.sudokuSerial and 
+                    np.all( np.array( solution.board) == np.array(ow.solution))):
+                    solveCnt+=1
+                    time.sleep(0.3)
+                else:
+                    print("新题目或计算不等")
+                    solveCnt = 0
+                    time.sleep(0.3)
+            else: # 求解失败 延时再解一次
                 print(solutionStr.split("---------------------------")[1])
                 puzzle.show()
                 time.sleep(0.3)
+                solveCnt = 0
         except Exception as error:#,Argument
             # print(f"**** ERROR: ****",error)
             print(f"**** {inspect.currentframe().f_code.co_name} ERROR: ****",error)
