@@ -1,7 +1,7 @@
 
 ## 和差化积
-[百度百科 和差化积](https://baike.baidu.com/item/%E7%A7%AF%E5%8C%96%E5%92%8C%E5%B7%AE/6973123)
-[知乎 和差化积的几何直觉](https://zhuanlan.zhihu.c om/p/184757814)
+- [百度百科 和差化积](https://baike.baidu.com/item/%E7%A7%AF%E5%8C%96%E5%92%8C%E5%B7%AE/6973123)
+- [知乎 和差化积的几何直觉](https://zhuanlan.zhihu.com/p/184757814)
 
 **积化和差**  
 ![sina_cosb](./img/sinacosb.svg)  
@@ -34,7 +34,16 @@ c和差 = c积-+s积
 周期函数能够通过傅里叶级数画出频域图  
 周期T=∞时频域图变为连续的曲线，引入复函数e，得到傅立叶变换
 
-傅里叶公式
+傅里叶公式  
+*-  
+f(x) 为待分析(拟合)的函数  
+$A_0$ 为直流分量  
+$A_n$ 为各频率下的三角函数参数(振幅 相位)  
+n 为频率倍数  
+$\omega$ 为角速度 ($\omega = \frac{2 \pi}{T}$)  
+t 为函数变量  
+$\psi_n$ 为各频率时的相位  
+-*
 $$ 
 \begin{align}
 f(t) &= A_0 + \sum_{n=1}^{\infty }A_{n}sin(n\omega t+\psi _{n})\\
@@ -109,6 +118,7 @@ $$
 $$
 \therefore b_n = \frac{1}{\pi}\int_{-\pi}^{\pi}sin(n\omega t)\cdot f(t)dt \quad (k=n)
 $$
+<div id="ft"></div>
 
 令 a_0 = 2A_0 假设T = 2Π  
 最终
@@ -123,6 +133,7 @@ $$
 
 ## 傅里叶变换推导详解
 [傅里叶变换推导详解](https://zhuanlan.zhihu.com/p/77345128)  
+(2.14)  
 波幅 相位与傅里叶级数$a_n \quad b_n$的关系
 $$
 \begin{align}
@@ -172,13 +183,13 @@ $f(t) = \sum_{n=-\infty}^\infty A_n e^{jn\omega t}$
 
 两边同乘以$e^{-jk\omega t}$并积分 
 $$
-\int_0^Tf(t)e^{-jk\omega t}dt = \int_0^T\sum_{n=-\infty}^{\infty}A_ne^{j(n-l)\omega t}dt
+\int_0^Tf(t)e^{-jk\omega t}dt = \int_0^T\sum_{n=-\infty}^{\infty}A_ne^{j(n-j)\omega t}dt
 $$
 带入三角函数正交积分为零推论，此时右边只有n=k 时有值
 
 $$
 \int_0^Tf(t)e^{-jn\omega t}dt = A_nT \\
-得 A_n = \frac{1}{T}\int_0^Tf(t)e^{-jn\omega t}dt \\
+\therefore 得 A_n = \frac{1}{T}\int_0^Tf(t)e^{-jn\omega t}dt \\
 幅值 \left|A_n\right| = \frac{1}{2}\sqrt{{a_n}^2 + {b_n}^2 } = \frac{1}{2}c_n
 $$
 
@@ -201,34 +212,73 @@ $\sum_{t=<T>}x[t]e^{-jk\omega t} = \sum_{t=<T>}\sum_{n=<T>}A_ne^{j(n-k)\omega t}
 上式同样满足当n不等于k时,周期的累加和为0,因此,上式可变为  
 $\sum_{t=<T>}x[t]e^{-jk\omega t} = T A_n$  
 
-最终得 $A_n = \frac{1}{T}\sum_{t=<T>}x[t]e^{-jn\omega t} \quad(3.39)$
+<div id="dft"></div>
+
+最终得 $A_n = \frac{1}{T}\sum_{t=<T>}x[t]e^{-jn\omega t} \quad(3.39)$  
+**$A_n$** n为某个频率时的分解参数
+**t** 为固定间隔的采样时间点  
+**n** 为角频率倍数
 
 #### 非周期离散时间傅里叶变换
+让他在周期时间属于$[-\infty,\infty]$即可认为是非周期时间无限的函数，则各频率下的系数计算为
+
+$A_n = \frac{1}{N}\sum_{t=-\infty}^{\infty}x[t]e^{-jn\omega t}$
+
+设频谱 $X(e^{j\omega}) = \sum_{t=-\infty}^{\infty}x[t]e^{-j\omega t}$  
+则 $A_n = \frac{1}{N}X(e^{j\omega n})$  
+再带回采样表达式 $x[t] = \sum_{n=<T>}A_nd^{jn\omega t}$ 得  
+$x[t] = \frac{1}{N}\sum_{t=-\infty}^{\infty}x(e^{j\omega t})e^{jn\omega t}$  
+
+又因为 $N = \frac{2\pi}{\omega}$
+$x[t] = \frac{\omega}{2\pi}\sum_{t=-\infty}^{\infty}x(e^{j\omega t})e^{jn\omega t}$  
+
+因为周期无穷大，$\omega$无穷小，所以上式变为了$j\omega$于$[0,2\pi]$内得积分,得  
+$x[t] = \frac{1}{2\pi}\int_0^{2\pi}X(e^{j\omega})e^{j\omega n t}d\omega$
+
+
 #### 非周期有限长度离散时间傅里叶变换
 
-## DTC
-- 傅里叶级数  
-- 傅里叶变换
-- 离散傅里叶变换 DFT 没有可用的代数方程计算求值
+根据[DFT](#dft)的$A_n、x[t]$公式  
+$x[t] = \sum_{n=<T>}A_ne^{jn\omega t} \quad(3.36)$  
+$A_n = \frac{1}{T}\sum_{t=<T>}x[t]e^{-jn\omega t} \quad(3.39)$
 
-[图像处理的三种变换：DFT、DCT和DWT的联系和区别](https://zhuanlan.zhihu.com/p/355025756)  
-是DFT的一种特殊形式。在DFT傅立叶级数展开式中，如果被展开的函数是实偶函数，那么其傅立叶级数就只包含余弦项，再将其离散化(DFT)可导出该余弦项的余弦变换就是离散余弦变换(DCT)。因此离散余弦变换相当于一个长度是其本身两倍的离散傅里叶变换。
+带入t范围为[0,T-1],并带入$\omega=\frac{2\pi}{T}$
+$$
+\begin{align}
+x[t] &= \sum_{n=0}^{T-1}A_n e^{jn\omega t} \\
+    &=\sum_{n=0}^{T-1}A_ne^{jn\frac{2\pi}{T}t} \quad (3.47)
+\end{align}
+$$
+同理得
+$$
+A_n=\frac{1}{T}\sum_{t=0}^{T-1}x[t]e^{-jn\frac{2\pi}{T}t} \quad(3.49)
+$$
+常常用大写的$X[n]$来表示变换后的复信号的T倍(即求其频率密度),即
+$X[n] = TA_n$  
 
+那么3.47 3.49可改写为
+$$
+x[t] =\frac{1}{T}\sum_{n=0}^{T-1}X[n]e^{jn\frac{2\pi}{T}t} \quad (3.51)
+$$
 
-- [DCT变换](https://zhuanlan.zhihu.com/p/413252930)
-- [图像处理中的DCT变换](https://zhuanlan.zhihu.com/p/676174673?utm_id=0)
-- [详解离散余弦变换（DCT）](https://zhuanlan.zhihu.com/p/85299446)
-- [DCT探究（离散余弦变换 Discrete Cosine Transform）](https://zhuanlan.zhihu.com/p/621406000)
-- [DCT变换](https://blog.csdn.net/BigDream123/article/details/101426393)
-- [一维 二维DCT变换](https://z2bns.github.io/2021/10/27/DCT%E7%A6%BB%E6%95%A3%E4%BD%99%E5%BC%A6%E5%8F%98%E6%8D%A2/)
+$$
+X[n]=\sum_{t=0}^{T-1}x[t]e^{-jn\frac{2\pi}{T}t} \quad(3.52)
+$$
 
-![DCTx8](./img/DCTx8.png)
+#### 注意
+离散福利叶变换的幅度计算和相位计算与傅里叶级数的余弦展开(2.14)有所不同  
+根据欧拉公式 $e^{-j\omega t} = cos(\omega t) - j sin(\omega t)$与傅立叶级数余弦展开角度+-号不同
+$$
+\begin{align}
+c_n &= \frac{2}{T}\sqrt{{a_n}^2+{b_n}^2} \\
+\varphi &= arctan(\frac{b_n}{a_n})
+\end{align}
+$$
 
-在图像视频领域中，最常用的是DCT-Ⅱ，平常说的DCT一般指的是DCT-Ⅱ。DCT-Ⅲ是 DCT-Ⅱ的反变换，一般说的反DCT指的就是DCT-Ⅲ。
+// todo 这个-号和2/T是哪里来的，应该是哪里得定义不一样
 
-### JPEG
-- [JPEG编解码原理](https://zhuanlan.zhihu.com/p/62286932)  
-- [影像算法解析——JPEG 压缩算法](https://zhuanlan.zhihu.com/p/40356456)
-- [JPEG图像压缩详解和代码实现](https://zhuanlan.zhihu.com/p/601614313)
-- [wiki - JPEG](https://zh.wikipedia.org/wiki/JPEG)
-<!-- 规范 -->
+#### note
+对于DFT $A_n = \frac{1}{T}\sum_{t=<T>}x[t]e^{-jn\omega t} \quad(3.39)$
+- n = 0 时对应的是傅立叶直流分量
+- t = 0 时对应到不同频率n上可以用于在不同频率补齐到相位上
+
