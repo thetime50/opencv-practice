@@ -9,7 +9,7 @@
 
 
 - [\* 详解离散余弦变换（DCT）](https://zhuanlan.zhihu.com/p/85299446)
-- [DCT变换](https://zhuanlan.zhihu.com/p/413252930)
+- [DCT变换 算法 LLM-DCT ANN-DCT](https://zhuanlan.zhihu.com/p/413252930)
 - [图像处理中的DCT变换](https://zhuanlan.zhihu.com/p/676174673?utm_id=0)
 - [DCT探究（离散余弦变换 Discrete Cosine Transform）](https://zhuanlan.zhihu.com/p/621406000)
 - [\* DCT变换](https://blog.csdn.net/BigDream123/article/details/101426393)
@@ -18,7 +18,13 @@
 ![DCTx8](./img/DCTx8.png)
 
 先给出常见的DCT公式  
-$F(u) = c(u)\sum_{x=0}^{N-1}f(x)cos[\frac{(x+0.5)\pi}{N}u] $
+$$
+\begin{align}
+& F(u) = c(u)\sum_{x=0}^{N-1}f(x)cos[\frac{(x+0.5)\pi}{N}u] \\
+& u=0 时 c(0) = \sqrt{1/n} \\
+& 否则 c(u) = \surt{2/n}
+\end{align}
+$$
 
 在图像视频领域中，最常用的是DCT-Ⅱ，平常说的DCT一般指的是DCT-Ⅱ。DCT-Ⅲ是 DCT-Ⅱ的反变换，一般说的反DCT指的就是DCT-Ⅲ。
 
@@ -49,11 +55,30 @@ $$
 在之前给的DCT里有个c(u)，工程学上的意义，DFT中也常常会取$\frac{1}{N}$ 或 $\sqrt{\frac{1}{N}}$  
 DCT变换变成矩阵运算的形式时又经常取 $\sqrt{\frac{1}{2N}}$（当k=0时除外）
 
+[DCT（离散余弦变换）为什么不能做频谱分析？ - John Xu的回答 - 知乎](https://www.zhihu.com/question/23792822/answer/122153477)
+
+DCT缺少相位信息，对于信号里的sin分量取的是2倍周期后的cos分量来表示  
+
+对一个偶函数做DFT不会丢失sin分量吗?
+信号对称后 自己的cos分量不变 sin分量会分出一部分到2倍周期的cos分量上。  所以DCT $X[k] = \sum_{n=0}^{N-1}x[n](cos\frac{2\pi kn}{N})$中并不能直接把sin项去掉，只是DCT后sin项的幅度信息有得到保留
+
+jpeg做了dct有办法还原吗(看具体实现是怎么处理的把)
 
 
-### JPEG
+## FFT
+
+[二维离散傅里叶（DFT）以及快速傅里叶（FTT）的实现](https://zhuanlan.zhihu.com/p/36377799)  
+[快速傅里叶变换（FFT）超详解](https://zhuanlan.zhihu.com/p/347091298)  
+[信号与系统笔记(八)：离散傅里叶变换(DFT)](https://zhuanlan.zhihu.com/p/584131911)  
+[快速傅里叶变换（FFT）之一：Radix-2 DIT FFT](https://zhuanlan.zhihu.com/p/663306670)
+
+DIT-FFT和DIF-FFT
+
+
+## JPEG
 - [JPEG编解码原理](https://zhuanlan.zhihu.com/p/62286932)  
 - [影像算法解析——JPEG 压缩算法](https://zhuanlan.zhihu.com/p/40356456)
 - [JPEG图像压缩详解和代码实现](https://zhuanlan.zhihu.com/p/601614313)
 - [wiki - JPEG](https://zh.wikipedia.org/wiki/JPEG)
 <!-- 规范 -->
+
