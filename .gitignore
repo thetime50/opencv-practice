@@ -2,10 +2,10 @@ opencv_dataset_01/
 __pycache__/
 .ipynb_checkpoints
 dataset
+/OpenCVSudoku/data/
 
 /tempdoc/saveDir1.avi
 /tempdoc/haarcascade_*.xml
 /doc/YiConfig/wifi/wpa_supplicant.conf
-/OpenCVSudoku/data/*
 
 /Ping-*.txt

@@ -4,7 +4,7 @@ def dftFloat(wave,cnt=None):
     if(cnt is None):
         cnt = len(wave)
     akArr = []
-    N = len(wave)
+    N = cnt # 待验证
     for k in range(len(wave)):
         ak = np.complex64(0)
         for n in range(len(wave)):
@@ -36,7 +36,9 @@ def getPhase(akArr):
     for i,ak in enumerate( akArr):
         if(ak.real != 0):
             res[i] = np.arctan(- ak.imag/ak.real)
-        else:
+        elif(ak.imag != 0):
             res[i] = np.arctan(- ak.imag*np.inf)
+        else:
+            res[i] = 0
     return res
 

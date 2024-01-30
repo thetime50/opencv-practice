@@ -70,9 +70,43 @@ jpeg做了dct有办法还原吗(看具体实现是怎么处理的把)
 [二维离散傅里叶（DFT）以及快速傅里叶（FTT）的实现](https://zhuanlan.zhihu.com/p/36377799)  
 [快速傅里叶变换（FFT）超详解](https://zhuanlan.zhihu.com/p/347091298)  
 [信号与系统笔记(八)：离散傅里叶变换(DFT)](https://zhuanlan.zhihu.com/p/584131911)  
-[快速傅里叶变换（FFT）之一：Radix-2 DIT FFT](https://zhuanlan.zhihu.com/p/663306670)
+[* 快速傅里叶变换（FFT）之一：Radix-2 DIT FFT](https://zhuanlan.zhihu.com/p/663306670)
 
 DIT-FFT和DIF-FFT
+![fft](./img/fft.avif)
+
+拆出奇倍项和偶倍项，有能够共用的部分，不断递归拆分
+
+预备  
+$W_{Nm}^{nkm} = W_{N/m}^{nk/m} = W_N^{nk} = e^{-j\frac{2\pi nk}{N}}$  
+$W_N^{N/2} = -1$
+
+抽取  
+$x_1[n] = x[2n]$  
+$x_2[n] = x[2n+1]$
+
+n为样本索引  
+k为角频率倍数  
+$$
+\begin{align}
+X(k) &= \sum_{n=0}^{N-i}x[n]W_N^{nk} \\
+&=\sum_{n=0}^{N/2-1}x_1[n]W_N^{2nk} + \sum_{n=0}^{N/2-1}x_2[n]W_N^{(2n-1)k} \quad 拆分样本奇偶项\\
+&=\sum_{n=0}^{N/2-1}x_1[n]W_{N/2}^{nk} + W_N^k\sum_{n=0}^{N/2-1}x_2[n]W_{N/2}^{nk} \quad 根据周期性化简 右边先提出+1项\\
+&=X_1(k) + W_N^kX_2(k)
+\end{align}
+$$
+- 其中$X_1(k)$和$X_2(k)$分别为$x_1[n]$和$x_2[n]$的N/2点DFT $k=[0,N/2-1]$(因为是两个一半采样的DFT相加,所以所以精度k也只取到一半)
+- $W_N^k 为旋转因子$
+
+对于$k=[N/2,N-1]$可带入
+$$
+\begin{align}
+X(k+N/2) &= X_1(k+N/2) + W_N^{k+N/2}X_2(k+N/2) \\
+&= X_1(k) - W_N^kX_2(k)
+\end{align}
+$$
+
+
 
 
 ## JPEG
