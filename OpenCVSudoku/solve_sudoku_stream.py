@@ -174,11 +174,9 @@ def contourLike(contour1,contour2):
     return rate<0.1
 
 
-# 实时批量处理
+# 实时批量处理 有sudoku判断
 def fcProcess(para):
     (imgIntQ,imgPutQ,imgSolveM) = para
-    oldImgHash = None
-    oldContour = None 
     while True:
         try:
             iw = imgIntQ.get(timeout=300)
@@ -197,25 +195,37 @@ def fcProcess(para):
                     iw.warped = warped
                     iw.correctionImgShape = puzzleImage.shape
                     imgHash = image_d_hash(warped)
-                    clike = oldContour is not None and contourLike(oldContour,puzzleCnt)
-                    ilike = clike and oldImgHash is not None and imgLike(oldImgHash,imgHash)
+
+                    iwMap = imgSolveM.value
+                    ilike = None
+                    if(iwMap is not None):
+                        oldImgHash = iwMap['oldInfo']['imgHash']
+                        oldContour = iwMap['oldInfo']['contour']  
+                        clike = contourLike(oldContour,puzzleCnt)
+                        ilike = clike and imgLike(oldImgHash,imgHash)
                     # 加一个求解序号 相同画面用同一个序号
                     if( ilike):
 
                         iw.setLikeSudoku()
-                        imgSolveM.value = iw
-                        oldContour = puzzleCnt
-                        oldImgHash = imgHash
+                        imgSolveM.value = {
+                            "iw":iw,
+                            "oldInfo":{
+                                "contour": puzzleCnt,
+                                "imgHash": imgHash,
+                            }
+                        }
                     else:
                         iw.setNewSudoku()
-                        imgSolveM.value = iw
-                        oldContour = puzzleCnt
-                        oldImgHash = imgHash
+                        imgSolveM.value = {
+                            "iw":iw,
+                            "oldInfo":{
+                                "contour": puzzleCnt,
+                                "imgHash": imgHash,
+                            }
+                        }
                 except Exception as e:
                     # 没有找到矩形
                     imgSolveM.value = None
-                    oldImgHash = None
-                    oldContour = None
                     pass
                 if(imgPutQ.qsize() < MAX_QUEUE_SIZE):
                     imgPutQ.put(iw)
@@ -225,7 +235,7 @@ def fcProcess(para):
             break
         # print('fp',image)
 
-# 耗时的少量的处理
+# 耗时的 低频的处理
 def solveSudokuProcess(modelPath,imgSolveM,imgSolutionM):
     solveSudokuSerial = None
     solveCnt = 0
@@ -233,7 +243,8 @@ def solveSudokuProcess(modelPath,imgSolveM,imgSolutionM):
     while 1:
         try:
             time.sleep(0.02)
-            iw = imgSolveM.value
+            iwMap = imgSolveM.value
+            iw = iwMap['iw']
             if(iw is None):
                 continue
             if(solveSudokuSerial == iw.sudokuSerial):
@@ -337,20 +348,20 @@ if __name__ == '__main__':
 
     # imgIntQ = Queue()
     # imgPutQ = Queue()
-    imgIntQ = Manager().Queue()
-    imgPutQ = Manager().Queue()
-    imgSolveM = Manager().Value(None,None)
-    imgSolutionM = Manager().Value(None,None)
+    imgIntQ = Manager().Queue() # mainProcess -> fcProcess
+    imgPutQ = Manager().Queue() # fcProcess -> putProcess
+    imgSolveM = Manager().Value(None,None) # fcProcess -> solveSudokuProcess
+    imgSolutionM = Manager().Value(None,None) # putProcess -> solveSudokuProcess
     
     mp = Process(name="mainProcess",target=mainProcess, args=(imgIntQ,)) # 获取视频进程
     pp = Process(name="putProcess",target=putProcess, args=(imgPutQ,imgSolutionM)) # 显示结果进程
-    ssp = Process(name="solveSudokuProcess",target=solveSudokuProcess, args=(modelPath,imgSolveM,imgSolutionM)) # 显示结果进程
+    ssp = Process(name="solveSudokuProcess",target=solveSudokuProcess, args=(modelPath,imgSolveM,imgSolutionM)) # 耗时的 低频的处理 识别和解算细节
     mp.start()
     pp.start()
     ssp.start()
 
     poolcnt = 1
-    fpo = Pool(poolcnt) # 处理进程
+    fpo = Pool(poolcnt) # 并行处理进程
     fpo.map(fcProcess, [(imgIntQ,imgPutQ,imgSolveM)]*poolcnt)
 
     mp.join()
