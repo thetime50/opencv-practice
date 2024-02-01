@@ -13,6 +13,16 @@ def dftFloat(wave,cnt=None):
         akArr.append(ak/N)
     return akArr
 
+def dftFloatK(k,wave,cnt=None):
+    if(cnt is None):
+        cnt = len(wave)
+    N = cnt # 待验证
+    ak = np.complex64(0)
+    for n in range(len(wave)):
+        seta = 2*np.pi/N * n*k
+        ak += wave[n] * np.complex64(np.cos(seta)+ np.sin(seta)*1.0j)
+    return ak
+
 
 def getDftFun(akArr,N=None):
     if(N is None):

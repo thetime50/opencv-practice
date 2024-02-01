@@ -244,9 +244,9 @@ def solveSudokuProcess(modelPath,imgSolveM,imgSolutionM):
         try:
             time.sleep(0.02)
             iwMap = imgSolveM.value
-            iw = iwMap['iw']
-            if(iw is None):
+            if(iwMap is None):
                 continue
+            iw = iwMap['iw']
             if(solveSudokuSerial == iw.sudokuSerial):
                 if( solveCnt > 1):
                     continue

@@ -1,13 +1,98 @@
 
 # Contains two helper utilities for finding the Sudoku puzzle board itself as well as digits therein.
 # 搜索数独框和识别数字
-
+import matplotlib.pyplot as plt
 from imutils.perspective import four_point_transform
 from skimage.segmentation import clear_border
 import numpy as np
 import imutils
 import cv2
 from tensorflow.keras.preprocessing.image import img_to_array
+
+def contoursSort(cnt):
+    # 四点排序
+    cntSort = np.zeros_like(cnt)
+    cntSum = np.copy(cnt).sum(2) # 这个加2好像没啥用
+    cntSort[0] = cnt[np.argmin(cntSum)] # [0,0]
+    cntSort[2] = cnt[np.argmax(cntSum)]  # [w,h]
+    diff = np.diff(cnt)
+    cntSort[1] =cnt[np.argmin(diff)]  #[w,0] # (y<x)
+    cntSort[3] = cnt[np.argmax(diff)] #[0,h] # (y>x)
+    return cntSort
+
+
+def fourPointCorrection(gray,image,thresh,puzzleCnt, debug=False):
+    if debug:
+        output = image.copy()
+        cv2.drawContours(output, [puzzleCnt], -1, (0,255,0), 2)
+        for index,point in enumerate(puzzleCnt):
+            cv2.putText(output, str(index),tuple(point[0]),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+
+        cv2.imshow("Puzzle Outline",output)
+        cv2.waitKey(0)
+    threshRoi = four_point_transform(thresh,puzzleCnt.reshape(4, 2))
+    minithresh = cv2.resize(threshRoi,(127,127))
+    horizontal_sum = np.sum( minithresh, axis=1)
+    vertical_sum = np.sum( minithresh, axis=0)
+    horizontal_min = np.min(horizontal_sum)
+    vertical_min = np.min(vertical_sum)
+    horizontal_sum = horizontal_sum - horizontal_min
+    vertical_sum = vertical_sum - vertical_min
+
+    # plt.imshow(minithresh, cmap='gray')
+    # plt.show()
+    cv2.waitKey(0)
+    def grideCheck(line):
+        grideFilter  = [1,0,-1,-0.5,0, 0,0,0,0,0 ,0,-0.5,-1,0]*9 + [1] # 14*9 +1
+        match = np.sum( grideFilter*line)
+        print("grideCheck:",match)
+        return match
+    def digitCheck(line):
+        # aFilter  = [0,0,1,1,1, 1,1,1,1,1 ,1,1,1,0]*9+[0]
+        # l1 = line*aFilter
+        # plt.subplot2grid((3,2),(0,0),colspan=2)
+        # plt.plot(line)
+        l1 = line.copy()
+        width = 14
+        thre = 15e3
+        for i in range(4):
+            if(l1[i]<l1[i+1] and l1[i]< thre):
+                l1[:i] = l1[i]
+        for i in range(9):
+            index = (i+1)*width -3
+            cnt = 1
+            while index+cnt<len(l1) and l1[index+cnt-1]>l1[index+cnt] and cnt<7:
+                cnt+=1
+            while index+cnt<len(l1) and l1[index+cnt-1]<l1[index+cnt] and cnt<7:
+                l1[index+cnt] = l1[index+cnt-1]
+                cnt+=1
+            while index+cnt<len(l1) and l1[index+cnt-1]>l1[index+cnt] and cnt<7:
+                l1[index+cnt] = l1[index+cnt-1]
+                cnt+=1
+
+        import fourier
+
+        akArr = [fourier.dftFloatK(9,l1)]
+
+        modulus = fourier.getModulus(akArr)
+        phase = fourier.getPhase(akArr)
+        print(modulus,phase)
+        # plt.subplot2grid((3,2),(1,0),colspan=2)
+        # plt.plot(l1)
+        # plt.subplot2grid((3,2),(2,0),colspan=2)
+        # tmodulus = np.abs(np.fft.fft(l1))
+        # tmodulus[0] =0 
+        # plt.plot(tmodulus, )
+        # plt.show()
+        return modulus[0]>123000/2 and np.abs(phase[0])<0.12
+
+    if grideCheck(horizontal_sum)>40*1000 and grideCheck(vertical_sum)>40*1000 or \
+        digitCheck(horizontal_sum) and digitCheck(vertical_sum):
+        warped = four_point_transform(gray, puzzleCnt.reshape(4, 2))# 透视修正后的灰度图
+        puzzle = four_point_transform(image, puzzleCnt.reshape(4, 2))# 透视修正后的彩图
+        return warped,puzzle
+    return None
 
 def find_puzzle(image, debug=False):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -27,6 +112,8 @@ def find_puzzle(image, debug=False):
     cnts = sorted(cnts, key=cv2.contourArea, reverse=True) # 用面积反序排序(从大到小)
 
     puzzleCnt = None
+    warped=None
+    puzzle = None
     for c in cnts: # 从大到小查找4边形轮廓
         peri = cv2.arcLength(c,True) # 轮廓长度
         approx = cv2.approxPolyDP(c, 0.02 * peri, True) # 多边形拟合
@@ -35,35 +122,19 @@ def find_puzzle(image, debug=False):
         if(approxArea<28*28*81 * 0.8):
             break
         if len(approx == 4) and approxArea > squareArea*0.6: # 顶点检查 面积检查
-            puzzleCnt = approx
-            break
+            # if(特征判断)
+            puzzleCnt = contoursSort(approx)
+            r = fourPointCorrection(gray,image,thresh,puzzleCnt,debug)
+            if(r):
+                [warped,puzzle] = r
+                break
+            else:
+                puzzleCnt = None
     
     if puzzleCnt is None:
         raise Exception(("Could not find Sudoku pussle outline."
             "Try debugging Your thresholding and contour steps."))
     
-    # 四点排序
-    cntSort = np.zeros_like(puzzleCnt)
-    cntSum = np.copy(puzzleCnt).sum(2) # 这个加2好像没啥用
-    cntSort[0] = puzzleCnt[np.argmin(cntSum)] # [0,0]
-    cntSort[2] = puzzleCnt[np.argmax(cntSum)]  # [w,h]
-    diff = np.diff(puzzleCnt)
-    cntSort[1] =puzzleCnt[np.argmin(diff)]  #[w,0] # (y<x)
-    cntSort[3] = puzzleCnt[np.argmax(diff)] #[0,h] # (y>x)
-
-    puzzleCnt = cntSort
-
-    if debug:
-        output = image.copy()
-        cv2.drawContours(output, [puzzleCnt], -1, (0,255,0), 2)
-        for index,point in enumerate(puzzleCnt):
-            cv2.putText(output, str(index),tuple(point[0]),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
-
-        cv2.imshow("Puzzle Outline",output)
-        cv2.waitKey(0)
-    puzzle = four_point_transform(image, puzzleCnt.reshape(4, 2))# 透视修正后的彩图
-    warped = four_point_transform(gray, puzzleCnt.reshape(4, 2))# 透视修正后的灰度图
     # check to see if we are visualizing the perspective transform
     if debug:
         # show the output warped image (again, for debugging purposes)
