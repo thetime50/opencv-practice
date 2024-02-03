@@ -8,6 +8,7 @@ import numpy as np
 import imutils
 import cv2
 from tensorflow.keras.preprocessing.image import img_to_array
+import fourier
 
 def contoursSort(cnt):
     # 四点排序
@@ -71,21 +72,21 @@ def fourPointCorrection(gray,image,thresh,puzzleCnt, debug=False):
                 l1[index+cnt] = l1[index+cnt-1]
                 cnt+=1
 
-        import fourier
-
-        akArr = [fourier.dftFloatK(9,l1)]
-
-        modulus = fourier.getModulus(akArr)
-        phase = fourier.getPhase(akArr)
-        print(modulus,phase)
+        akArr = np.fft.fft(l1)
+        modulus = np.abs(akArr)[:len(l1) // 2]
+        modulus[0] =0 
+        modulus_9 = modulus[9]
+        phase_9 = fourier.getPhase(akArr[9:10])[0]
+        only_9 = np.sum(modulus>modulus_9/3)==1
+        print(modulus_9,phase_9,only_9)
+        if(not only_9):
+            return False
         # plt.subplot2grid((3,2),(1,0),colspan=2)
         # plt.plot(l1)
         # plt.subplot2grid((3,2),(2,0),colspan=2)
-        # tmodulus = np.abs(np.fft.fft(l1))
-        # tmodulus[0] =0 
-        # plt.plot(tmodulus, )
+        # plt.plot(modulus, )
         # plt.show()
-        return modulus[0]>123000/2 and np.abs(phase[0])<0.12
+        return modulus_9>123000/2 and np.abs(phase_9)<0.12
 
     if grideCheck(horizontal_sum)>40*1000 and grideCheck(vertical_sum)>40*1000 or \
         digitCheck(horizontal_sum) and digitCheck(vertical_sum):
@@ -97,6 +98,7 @@ def fourPointCorrection(gray,image,thresh,puzzleCnt, debug=False):
 def find_puzzle(image, debug=False):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     blurred = cv2.GaussianBlur(gray,(7,7),3) # 高斯模糊
+    areaThreshold = 28*28*81 * 0.8
 
     thresh = cv2.adaptiveThreshold(blurred,255, # 自动阈值
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)# 高斯权重 阈值处理方式 计算半径 减常量
@@ -106,7 +108,7 @@ def find_puzzle(image, debug=False):
         cv2.imshow("Pussle Thresh", thresh)
         cv2.waitKey(0)
     
-    cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, # 外部轮廓
+    cnts = cv2.findContours(thresh.copy(), cv2.RETR_LIST, # 外部轮廓
         cv2.CHAIN_APPROX_SIMPLE) # 保存顶点
     cnts = imutils.grab_contours(cnts)
     cnts = sorted(cnts, key=cv2.contourArea, reverse=True) # 用面积反序排序(从大到小)
@@ -114,15 +116,16 @@ def find_puzzle(image, debug=False):
     puzzleCnt = None
     warped=None
     puzzle = None
+    
+    # print("cnts:",len(cnts))
     for c in cnts: # 从大到小查找4边形轮廓
         peri = cv2.arcLength(c,True) # 轮廓长度
         approx = cv2.approxPolyDP(c, 0.02 * peri, True) # 多边形拟合
         approxArea = cv2.contourArea(approx)
         squareArea = (peri/4)**2
-        if(approxArea<28*28*81 * 0.8):
+        if(approxArea<areaThreshold):
             break
         if len(approx == 4) and approxArea > squareArea*0.6: # 顶点检查 面积检查
-            # if(特征判断)
             puzzleCnt = contoursSort(approx)
             r = fourPointCorrection(gray,image,thresh,puzzleCnt,debug)
             if(r):
@@ -182,7 +185,7 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None)
     (th, tw) = thresh.shape
     x, y, w, h = cv2.boundingRect(c)
     percentFilled = cv2.countNonZero(mask) / float(th* tw) # 轮廓占单元格的比例
-    if percentFilled < 1/28: # 面积比线性转换
+    if percentFilled < 1/28*0.8: # 面积比线性转换
         return None
     if(x > tw*3/4 or x+w < tw/4 or \
        y > th*3/4 or y+h < th/4):
@@ -257,7 +260,7 @@ def analysis_pussle_image(
     blockSize = max(11,min(warped.shape)//5)
     if(blockSize%2==0): blockSize+=1
     thresh = cv2.adaptiveThreshold(warped,255, # 自动阈值
-        cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY_INV,blockSize,5)# 高斯权重 阈值处理方式 计算半径 减常量
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY_INV,blockSize,5)# 高斯权重 阈值处理方式 计算半径 减常量
     cv2.imshow("thresh",thresh)
     cv2.waitKey(1)
     stepX = thresh.shape[1] / 9
