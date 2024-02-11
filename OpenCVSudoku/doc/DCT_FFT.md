@@ -9,6 +9,7 @@
 
 
 - [\* 详解离散余弦变换（DCT）](https://zhuanlan.zhihu.com/p/85299446)
+- [使用快速傅里叶变换加速DCT/IDCT变换](https://zhuanlan.zhihu.com/p/548342476)
 - [DCT变换 算法 LLM-DCT ANN-DCT](https://zhuanlan.zhihu.com/p/413252930)
 - [图像处理中的DCT变换](https://zhuanlan.zhihu.com/p/676174673?utm_id=0)
 - [DCT探究（离散余弦变换 Discrete Cosine Transform）](https://zhuanlan.zhihu.com/p/621406000)
@@ -22,7 +23,7 @@ $$
 \begin{align}
 & F(u) = c(u)\sum_{x=0}^{N-1}f(x)cos[\frac{(x+0.5)\pi}{N}u] \\
 & u=0 时 c(0) = \sqrt{1/n} \\
-& 否则 c(u) = \surt{2/n}
+& 否则 c(u) = \sqrt{2/n}
 \end{align}
 $$
 
