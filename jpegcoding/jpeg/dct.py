@@ -29,49 +29,28 @@ def getDctCoefficient(side):
     return res
 
 def dct2d(img,coe):
-    res = np.empty(coe.shape[:2],dtype="folat64")
+    res = np.empty(coe.shape[:2],dtype="float64")
     for v in range(len(coe)):
         for u in range(len(coe[0])):
             res[u][v] = np.sum(img*coe[u][v])
     return res
+    # res = np.dot(img,coe)
+    # res = np.dot(img,np.transpose(coe))
+    # return res.reshape(8,8)
 
 
-def dct2dBlock(img,side = 8,fill=16):
+def dct2dBlock(img,side = 8):
     coe8 = getDctCoefficient(side)
     yblock = img.shape[0] // side
     xblock = img.shape[1] // side
     res = [[None for bx in range(xblock)] for by in range(yblock)]
     
     
-    for by in range(0,yblock-1):
+    for by in range(0,yblock):
         y = by * side
-        for bx in range(0,xblock-1):
+        for bx in range(0,xblock):
             x = bx *side
             roi = img[y:y+side,x:x+side]
             res[by][bx] = dct2d(roi,coe8)
-        if(img.shape[0] % fill):
-            fillx = fill
-            x = xblock*side
-            lastcol = img[y:y+side,-1:0] # 2维
-            while fillx>0:
-                if(x>=img.shape[1]):
-                    roi = np.empty([side,side],dtype='float32') 
-                    roi[:] = lastcol
-                elif(x+side>img.shape[1]):
-                    roi = np.ones([side,side],dtype='float32')
-                    roi[:] = lastcol
-                    roi[:img.shape[1]%side] = img[by][x:]
-                else:
-                    roi = img[by][x:x+8]
-                res[by].append(dct2d(roi,coe8))
-                fillx -= side
-                x += side
-    res = res+[[None]* len(res[0])] * (fill//side)
-    for bx in range(0,xblock-1):
-        filly = fill
-        y = yblock*side
-        while my > 0:
-            
-            my +=side
-            y-=side
+    return res
 
