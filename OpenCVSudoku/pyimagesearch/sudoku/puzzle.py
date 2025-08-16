@@ -43,7 +43,7 @@ def fourPointCorrection(gray,image,thresh,puzzleCnt, debug=False):
 
     # plt.imshow(minithresh, cmap='gray')
     # plt.show()
-    cv2.waitKey(0)
+    # cv2.waitKey(0)
     def grideCheck(line):
         grideFilter  = [1,0,-1,-0.5,0, 0,0,0,0,0 ,0,-0.5,-1,0]*9 + [1] # 14*9 +1
         match = np.sum( grideFilter*line)
@@ -97,12 +97,16 @@ def fourPointCorrection(gray,image,thresh,puzzleCnt, debug=False):
 
 def find_puzzle(image, debug=False):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    blurred = cv2.GaussianBlur(gray,(7,7),3) # 高斯模糊
+    # blurred = cv2.GaussianBlur(gray,(7,7),3) # 高斯模糊
+    blurred=gray
     areaThreshold = 28*28*81 * 0.8
 
     thresh = cv2.adaptiveThreshold(blurred,255, # 自动阈值
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)# 高斯权重 阈值处理方式 计算半径 减常量
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,20)# 高斯权重 阈值处理方式 计算半径 减常量
     thresh = cv2.bitwise_not(thresh)
+
+    # cv2.imshow("thresh1",thresh)
+
 
     if debug:
         cv2.imshow("Pussle Thresh", thresh)
@@ -159,7 +163,7 @@ def debugShow(title,img,size=(250,250),iswait=True):
 # 分辨过滤出数字单元格 并统一大小
 # cell为二维亮度图片进行二值化 输出为笔画图片
 # border=[t,b,l,r]
-def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None):
+def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None,check = True):
     cellstr = (str(position) if position else "")
     # thresh = cv2.threshold(cell, 0, 255, # 自动阈值
     #                     cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1] # 二进制 大津算法 # 返回 阈值,图像
@@ -185,10 +189,10 @@ def extract_digit(cell, shape=None, border=[1,1,1,1], debug=False,position=None)
     (th, tw) = thresh.shape
     x, y, w, h = cv2.boundingRect(c)
     percentFilled = cv2.countNonZero(mask) / float(th* tw) # 轮廓占单元格的比例
-    if percentFilled < 1/28*0.8: # 面积比线性转换
+    if check and percentFilled < 1/28*0.8: # 面积比线性转换
         return None
-    if(x > tw*3/4 or x+w < tw/4 or \
-       y > th*3/4 or y+h < th/4):
+    if(check and (x > tw*3/4 or x+w < tw/4 or \
+       y > th*3/4 or y+h < th/4)):
         return None
     # apply the mask to the thresholded cell
     digit = cv2.bitwise_and(thresh, thresh, mask=mask) # 用最大的轮廓做一次蒙版 数字笔画是一体的 避免干扰
@@ -260,9 +264,10 @@ def analysis_pussle_image(
     blockSize = max(11,min(warped.shape)//5)
     if(blockSize%2==0): blockSize+=1
     thresh = cv2.adaptiveThreshold(warped,255, # 自动阈值
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY_INV,blockSize,5)# 高斯权重 阈值处理方式 计算半径 减常量
-    cv2.imshow("thresh",thresh)
-    cv2.waitKey(1)
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY_INV,blockSize,50)# 高斯权重 阈值处理方式 计算半径 减常量
+    if debug:
+        cv2.imshow("thresh",thresh)
+        # cv2.waitKey(1)
     stepX = thresh.shape[1] / 9
     stepY = thresh.shape[0] / 9
 

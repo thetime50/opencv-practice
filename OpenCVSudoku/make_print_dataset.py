@@ -5,10 +5,16 @@ import matplotlib
 import matplotlib.pyplot as plt
 from tensorflow.keras.datasets import mnist
 from pyimagesearch.sudoku import extract_digit
+from dataAugmentation import random_augmentation
 
 matplotlib.interactive(False) # 关闭plt窗口后show()能返回继续
 
 (mtrain_images, mtrain_labels), (mtest_images, mtest_labels) = mnist.load_data()
+
+# mtrain_images = mtrain_images[0:100]
+# mtrain_labels = mtrain_labels[0:100]
+# mtest_images = mtest_images[0:100]
+# mtest_labels = mtest_labels[0:100]
 
 # # 显示图片
 # plt.figure() # 创建或者激活一个图形框
@@ -167,46 +173,30 @@ def generateDataSet(imgsrc, cnt,clearBorderRate = 0):
         thi = random.randint(0,len(thickness)-1)
         simg = imgsrc[font][label][thi]
 
+        tempImg = np.zeros(simg.shape, "uint8")
+        
+        tempPts = shap2point(tempImg.shape)
+        srcPts = shap2point(srcshap)
+        # 四角随意拉伸偏移量 目标形状为标准
+        ranPts = np.float32(
+            [
+                [ \
+                    random.uniform(0,tempImg.shape[1]*PRINT_STRETCH_RATE),\
+                    random.uniform(0,tempImg.shape[0]*PRINT_STRETCH_RATE)\
+                ] for i in range(4)\
+            ]
+        )
+
+        ranPts = ranPts * randomTrans
+        ranPts = ranPts + tempPts
+        ranPts = np.float32(ranPts)
+        transform = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
+        cv2.warpPerspective(simg, transform,tuple(tempImg.shape),dst = tempImg) # INV IMAGE WARP
         if(clearBorderRate==0 or random.random()>clearBorderRate):
-            desPts = shap2point(img.shape)
-            srcPts = shap2point(srcshap)
-            # 四角随意拉伸偏移量 目标形状为标准(28)
-            ranPts = np.float32(
-                [
-                    [ \
-                        random.uniform(0,img.shape[1]*PRINT_STRETCH_RATE),\
-                        random.uniform(0,img.shape[0]*PRINT_STRETCH_RATE)\
-                    ] for i in range(4)\
-                ]
-            )
-
-            ranPts = ranPts * randomTrans
-            ranPts = ranPts + desPts
-            ranPts = np.float32(ranPts)
-            src2des = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
-            cv2.warpPerspective(simg, src2des,tuple(desshap),dst = img) # INV IMAGE WARP
-        else:
-            tempImg = np.zeros(simg.shape, "uint8")
-            
-            tempPts = shap2point(tempImg.shape)
-            srcPts = shap2point(srcshap)
-            # 四角随意拉伸偏移量 目标形状为标准
-            ranPts = np.float32(
-                [
-                    [ \
-                        random.uniform(0,tempImg.shape[1]*PRINT_STRETCH_RATE),\
-                        random.uniform(0,tempImg.shape[0]*PRINT_STRETCH_RATE)\
-                    ] for i in range(4)\
-                ]
-            )
-
-            ranPts = ranPts * randomTrans
-            ranPts = ranPts + tempPts
-            ranPts = np.float32(ranPts)
-            src2temp = cv2.getPerspectiveTransform(srcPts, ranPts) # srcPts to ranPts
-            cv2.warpPerspective(simg, src2temp,tuple(tempImg.shape),dst = tempImg) # INV IMAGE WARP
-            tempImg = extract_digit(255-tempImg,shape = img.shape, border=[2,2,2,2])
-            np.copyto(img,tempImg)
+            tempImg = extract_digit(tempImg,shape = tempImg.shape, border=[4,4,4,4],check = False)
+        # tempImg = random_augmentation(tempImg) // 
+        tempImg = cv2.resize(tempImg, (28, 28))
+        np.copyto(img,tempImg)
         
         # plt.figure()
         # plt.imshow(imgdata[i], cmap=plt.cm.binary)
@@ -245,8 +235,8 @@ def objectArray(*args):
 
 # 生成数据集
 
-(trainData, trainLabels) = generateDataSet(imgsrc,60000,PRINT_CLEAR_BORDER_RATE)
-(testData, testLabels) = generateDataSet(imgsrc,10000,PRINT_CLEAR_BORDER_RATE)
+(trainData, trainLabels) = generateDataSet(imgsrc,mtrain_labels.size,PRINT_CLEAR_BORDER_RATE) # 60000
+(testData, testLabels) = generateDataSet(imgsrc,mtest_labels.size,PRINT_CLEAR_BORDER_RATE) # 10000
 
 print('save')
 
@@ -259,13 +249,13 @@ np.save( # 会覆盖旧文件
 )
 
 def testShowData(title,imgs,labs):
-    imgs = imgs[:25] / 255.0
+    imgs = imgs[:50] / 255.0
 
     # 显示图片和名称
     plt.figure(figsize=(10,10)).canvas.manager.set_window_title(title)
     # plt.title(title)
-    for i in range(25):
-        plt.subplot(5,5,i+1)
+    for i in range(imgs.shape[0]):
+        plt.subplot(5,10,i+1)
         plt.xticks([])
         plt.yticks([])
         plt.grid(False)
