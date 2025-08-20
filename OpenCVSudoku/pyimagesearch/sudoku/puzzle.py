@@ -129,7 +129,7 @@ def find_puzzle(image, debug=False):
         squareArea = (peri/4)**2
         if(approxArea<areaThreshold):
             break
-        if len(approx == 4) and approxArea > squareArea*0.6: # 顶点检查 面积检查
+        if len(approx) == 4 and approxArea > squareArea*0.6: # 顶点检查 面积检查
             puzzleCnt = contoursSort(approx)
             r = fourPointCorrection(gray,image,thresh,puzzleCnt,debug)
             if(r):

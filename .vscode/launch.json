@@ -15,7 +15,22 @@
             "cwd": "${fileDirname}",
             "args":[
                 "--model","output/mixin_digit_classifier.h5",
-                "--image","Sudoku_puzzle2.jpg",
+                "--image","Sudoku_puzzle4.jpg",
+                // "-d","1",
+            ],
+        },
+        {
+            "name": "solve_sudoku_puzzle",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/OpenCVSudoku/train_digit_classifier.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "python": "e:\\Users\\holid\\anaconda3\\envs\\tf-cv2\\python.exe",
+            "cwd": "${workspaceFolder}/OpenCVSudoku",
+            "args":[
+                "--model","output/mixin_digit_classifier.h5",
+                "-ds","dataset/mixin_dataset.npy",
                 // "-d","1",
             ],
         },
