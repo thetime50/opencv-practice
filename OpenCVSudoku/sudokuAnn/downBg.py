@@ -46,10 +46,10 @@ def download_worker(task_data):
     try:
         domain = img_url.split('/')[2]
         max_err_count = 3
-        if domain in err_domains and err_domains[domain] >= max_err_count:
-            print(f"跳过高错误率域名: {domain} cnt:{err_domains[domain]}/{max_err_count}")
-            err_domains[domain] = err_domains.get(domain, 0) + 1
-            return {'status': 'failed', 'error': f'跳过高错误率域名 cnt:{err_domains[domain]}/{max_err_count} for {img_url} '}
+        # if domain in err_domains and err_domains[domain] >= max_err_count:
+        #     print(f"跳过高错误率域名: {domain} cnt:{err_domains[domain]}/{max_err_count}")
+        #     err_domains[domain] = err_domains.get(domain, 0) + 1
+        #     return {'status': 'failed', 'error': f'跳过高错误率域名 cnt:{err_domains[domain]}/{max_err_count} for {img_url} '}
         # 使用MD5避免文件名冲突
         url_hash = hashlib.md5(img_url.encode()).hexdigest()[:8]
         filename = f"{query}_{width}x{height}_{url_hash}.jpg"
@@ -101,7 +101,7 @@ class ParallelImageDownloader:
         self.manager = Manager()
         self.err_domains = self.manager.dict()  # 错误域名统计
     
-    def get_image_urls(self, query, count, max_pages=0):
+    def get_image_urls(self, query,width,height, count, max_pages=0):
         """更智能的滚动加载，支持多种分页策略"""
         if not max_pages or max_pages <= 0:
             max_pages = (count // 35) * 1.3
@@ -116,11 +116,13 @@ class ParallelImageDownloader:
             print(f"🔍 搜索: '{query}'，目标: {count} 张图片")
             
             while len(all_image_urls) < count and page <= max_pages:
+                query_str = f"q={query_encoded}&qft=+filterui:imagesize-custom_{width}_{height}"
+                page_str = f"&first={(page-1)*page_count}&count={page_count}"
                 # 多种URL格式尝试
                 urls_to_try = [
-                    f"https://www.bing.com/images/search?q={query_encoded}&first={(page-1)*page_count}&count={page_count}",
-                    f"https://www.bing.com/images/search?q={query_encoded}&form=HDRSC2&first={(page-1)*page_count}&count={page_count}",
-                    f"https://www.bing.com/images/search?q={query_encoded}&qs=HS&form=QBIR&first={(page-1)*page_count}&count={page_count}"
+                    f"https://www.bing.com/images/search?{query_str}&{page_str}",
+                    f"https://www.bing.com/images/search?{query_str}&form=HDRSC2&{page_str}",
+                    f"https://www.bing.com/images/search?{query_str}&qs=HS&form=QBIR&{page_str}"
                 ]
                 
                 page_success = False
@@ -183,7 +185,7 @@ class ParallelImageDownloader:
         os.makedirs(save_dir, exist_ok=True)
         
         # 获取图片URL
-        image_urls = self.get_image_urls(query, count)
+        image_urls = self.get_image_urls(query,width,height, count)
         if not image_urls:
             print("❌ 未找到图片链接")
             return {'success': 0, 'failed': count}
@@ -222,7 +224,6 @@ if __name__ == "__main__":
     downloader = ParallelImageDownloader(max_processes=4)
     save_dir = "./img/bg"
     # query="background book"
-    # # query="background 书桌"
     # stats = downloader.download_parallel(
     #     query=query,
     #     count=3000,

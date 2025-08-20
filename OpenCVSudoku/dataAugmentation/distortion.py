@@ -25,6 +25,23 @@ def nonlinear_distortion(image, intensity=0.1):
                          cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
     return distorted
 
+
+def nonlinear_distortion_coords(points, image_shape, intensity=0.1):
+    """
+    给定原图坐标 points，返回它在扭曲后图像中的近似位置
+    速度快，但和 nonlinear_distortion(image) 结果可能有轻微偏差
+    """
+    pts = np.asarray(points, dtype=np.float32)
+    xs, ys = pts[:, 0], pts[:, 1]
+
+    dx = intensity * 50 * np.sin(2 * np.pi * ys / 150)
+    dy = intensity * 50 * np.sin(2 * np.pi * xs / 150)
+
+    x_new = xs - dx
+    y_new = ys - dy
+
+    return np.column_stack((x_new, y_new))
+
 def wave_distortion(image, amplitude=20, frequency=0.05):
     """波浪扭曲效果"""
     h, w = image.shape[:2]
@@ -40,6 +57,23 @@ def wave_distortion(image, amplitude=20, frequency=0.05):
     distorted = cv2.remap(image, map_x.astype(np.float32), map_y.astype(np.float32),
                          cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
     return distorted
+
+def wave_distortion_coords(points, image_shape, amplitude=20, frequency=0.05):
+    """
+    输入原图坐标 points，返回波浪扭曲后的坐标
+    与 wave_distortion(image) 结果一致
+    """
+    pts = np.asarray(points, dtype=np.float32)
+    xs, ys = pts[:, 0], pts[:, 1]
+
+    # 在 wave_distortion 中：map_y = y + distortion
+    # 输出图 (x', y') 从原图 (x', y' + distortion) 取像素
+    # 所以 y' = ys - distortion
+    distortion = amplitude * np.sin(2 * np.pi * frequency * xs)
+    x_new = xs
+    y_new = ys - distortion
+
+    return np.column_stack((x_new, y_new))
 
 def radial_distortion(image, strength=0.0005, center_x=0.5, center_y=0.5, fill_value=0):
     """
@@ -159,7 +193,24 @@ def random_distortion_field(image, grid_size=20, max_displacement=15):
     # 应用扭曲
     distorted = cv2.remap(image, map_x.astype(np.float32), map_y.astype(np.float32),
                          cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
-    return distorted
+    return distorted,displacement_field_x,displacement_field_y
+
+def random_distortion_coords(points, displacement_field_x, displacement_field_y):
+    """
+    近似版：一次计算，无迭代
+    """
+    pts = np.asarray(points, dtype=np.float32)
+    xs, ys = pts[:, 0], pts[:, 1]
+
+    h, w = displacement_field_x.shape
+    xs_int = np.clip(xs.astype(int), 0, w - 1)
+    ys_int = np.clip(ys.astype(int), 0, h - 1)
+
+    dx = displacement_field_x[ys_int, xs_int]
+    dy = displacement_field_y[ys_int, xs_int]
+
+    # 这里是正向位移，和 remap 有细微差异
+    return np.column_stack((xs - dx, ys - dy))
 
 # def composite_distortion(image, distortions=None):
 #     """复合多种扭曲效果"""
@@ -210,10 +261,13 @@ if __name__ == "__main__":
     
     
     distorted_img = nonlinear_distortion(img, intensity=0.1)
-
+    distorted_points = nonlinear_distortion_coords(points, img.shape[:2], intensity=0.1)
+    get_cell_locs(distorted_img, distorted_points)
     cv2.imshow('Nonlinear Distortion', distorted_img)
     
     wave_img = wave_distortion(img, amplitude=20, frequency=0.002)
+    wave_points = wave_distortion_coords(points, img.shape[:2], amplitude=20, frequency=0.002)
+    get_cell_locs(wave_img, wave_points)
     cv2.imshow('Wave Distortion', wave_img)
     
     radial_img = radial_distortion(img, strength=0.3, center_x=0.3, center_y=0.7)
@@ -223,7 +277,9 @@ if __name__ == "__main__":
     get_cell_locs(radial_img, radial_points)
     cv2.imshow('Radial Distortion', radial_img)
     
-    random_img = random_distortion_field(img, grid_size=10, max_displacement=15)
+    random_img,displacement_field_x,displacement_field_y = random_distortion_field(img, grid_size=10, max_displacement=15)
+    random_points = random_distortion_coords(points,displacement_field_x,displacement_field_y)
+    get_cell_locs(random_img, random_points)
     cv2.imshow('Random Distortion Field', random_img)
     
     cv2.waitKey(0)
