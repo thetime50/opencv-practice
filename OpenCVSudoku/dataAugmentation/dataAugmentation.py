@@ -13,7 +13,7 @@ def add_gaussian_noise(img, low = 0, high = 255):
 
 
 def perlin_noise_image(img,max = 255, scale=10):
-    (w, h) = img.shape
+    (w, h) = img.shape[:2]
     im = np.zeros((h, w), dtype=np.float32)
     seed = (random.randint(0, 100000),random.randint(0, 100000))
     for y in range(h):
@@ -92,6 +92,27 @@ def random_augmentation(img):
         lambda x: add_gaussian_noise(x, 0, 200) if random.random()>0.5 else perlin_noise_image(x,200),
         lambda x: draw_random_curves(x, num_curves=random.randint(1, 3)),
         lambda x: draw_random_border_lines(x, n=3, num_lines=random.randint(1, 3))
+    ]
+
+    # 从augmentations中抽卡两个
+    for i in random.sample(augmentations, 2):
+        if random.random()>0.5:
+            img = i(img)
+    
+    return img
+
+def random_augmentation2(img):
+    """
+    随机增强图像，返回增强后的图像。
+    - img: np.ndarray，BGR 或灰度
+    """
+
+    # 随机选择增强方式
+    augmentations = [
+        lambda x: add_gaussian_noise(x, 0, 40) if random.random()>0.5 else perlin_noise_image(x,40),
+        lambda x: draw_random_curves(x, num_curves=random.randint(1, 3)),
+        lambda x: draw_random_curves(x, num_curves=random.randint(1, 6)),
+        # lambda x: draw_random_border_lines(x, n=3, num_lines=random.randint(1, 3))
     ]
 
     # 从augmentations中抽卡两个

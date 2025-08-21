@@ -2,7 +2,11 @@ import cv2
 import numpy as np
 from scipy.interpolate import interp2d
 
-def nonlinear_distortion(image, intensity=0.1):
+DEBUG = False
+
+def nonlinear_distortion(image, intensity=0.1,dst = None):
+    if DEBUG:
+        print(f"nonlinear_distortion intensity={intensity}")
     """
     非线性扭曲效果
     intensity: 扭曲强度 (0.0-1.0)
@@ -22,7 +26,7 @@ def nonlinear_distortion(image, intensity=0.1):
     
     # 重映射
     distorted = cv2.remap(image, map_x.astype(np.float32), map_y.astype(np.float32), 
-                         cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+                         cv2.INTER_LINEAR, borderMode=cv2.BORDER_TRANSPARENT,dst=dst)
     return distorted
 
 
@@ -42,7 +46,9 @@ def nonlinear_distortion_coords(points, image_shape, intensity=0.1):
 
     return np.column_stack((x_new, y_new))
 
-def wave_distortion(image, amplitude=20, frequency=0.05):
+def wave_distortion(image, amplitude=20, frequency=0.05,dst=None):
+    if DEBUG:
+        print(f"wave_distortion amplitude={amplitude}, frequency={frequency}")
     """波浪扭曲效果"""
     h, w = image.shape[:2]
     
@@ -55,7 +61,7 @@ def wave_distortion(image, amplitude=20, frequency=0.05):
     map_y = y + distortion
     
     distorted = cv2.remap(image, map_x.astype(np.float32), map_y.astype(np.float32),
-                         cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+                         cv2.INTER_LINEAR, borderMode=cv2.BORDER_TRANSPARENT, dst=dst)
     return distorted
 
 def wave_distortion_coords(points, image_shape, amplitude=20, frequency=0.05):
@@ -75,7 +81,9 @@ def wave_distortion_coords(points, image_shape, amplitude=20, frequency=0.05):
 
     return np.column_stack((x_new, y_new))
 
-def radial_distortion(image, strength=0.0005, center_x=0.5, center_y=0.5, fill_value=0):
+def radial_distortion(image, strength=0.0005, center_x=0.5, center_y=0.5, fill_value=0, dst=None):
+    if DEBUG:
+        print(f"radial_distortion strength={strength}, center=({center_x}, {center_y})")
     """
     径向扭曲效果，保持图片大小不变
     
@@ -118,7 +126,8 @@ def radial_distortion(image, strength=0.0005, center_x=0.5, center_y=0.5, fill_v
     
     # 使用BORDER_CONSTANT填充空白区域
     distorted = cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR, 
-                         borderMode=cv2.BORDER_CONSTANT, borderValue=fill_value)
+                         borderMode=cv2.BORDER_TRANSPARENT, dst=dst)
+                        #  borderMode=cv2.BORDER_CONSTANT, borderValue=fill_value, dst=dst)
     return distorted
 
 def radial_distortion_coords(x, y, image_shape, strength=0.0005, center_x=0.5, center_y=0.5):
@@ -161,7 +170,9 @@ def batch_distort_coordinates(coords, image_shape, strength=0.0003, center_x=0.5
     return np.column_stack([distorted_x, distorted_y])
 
 
-def random_distortion_field(image, grid_size=20, max_displacement=15):
+def random_distortion_field(image, grid_size=20, max_displacement=15, dst=None):
+    if DEBUG:
+        print(f"random_distortion_field grid_size={grid_size}, max_displacement={max_displacement}")
     """随机扭曲场效果 - 修复版本"""
     h, w = image.shape[:2]
     
@@ -192,7 +203,7 @@ def random_distortion_field(image, grid_size=20, max_displacement=15):
     
     # 应用扭曲
     distorted = cv2.remap(image, map_x.astype(np.float32), map_y.astype(np.float32),
-                         cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+                         cv2.INTER_LINEAR, borderMode=cv2.BORDER_TRANSPARENT, dst=dst)
     return distorted,displacement_field_x,displacement_field_y
 
 def random_distortion_coords(points, displacement_field_x, displacement_field_y):
@@ -235,6 +246,89 @@ def random_distortion_coords(points, displacement_field_x, displacement_field_y)
     
 #     return result
 
+def random_perspective_distortion(img,dst):
+    src_points = np.int32([[0, 0], [img.shape[1]-1, 0], [img.shape[1]-1, img.shape[0]-1], [0, img.shape[0]-1]])
+    h, w = dst.shape[:2]
+
+    rate = np.random.uniform(0.5, 0.99)
+
+    rw = w*rate
+    rh = h*rate
+    start_point = np.array((np.random.randint(0, w-rw),np.random.randint(0, h-rh)), np.int32)
+    dw2 = rw//4
+    dh2 = rh//4
+    dst_points = start_point + np.array([(np.random.randint(0,dw2), np.random.randint(0,dh2)),
+                                            (np.random.randint(-dw2,0)+dw2*4, np.random.randint(0,dh2)),
+                                            (np.random.randint(-dw2,0)+dw2*4, np.random.randint(-dh2,0)+dh2*4),
+                                            (np.random.randint(0,dw2), np.random.randint(-dh2,0)+dh2*4)
+                                            ], np.int32)
+    M = cv2.getPerspectiveTransform(src_points.astype(np.float32), dst_points.astype(np.float32))
+    warped = cv2.warpPerspective(img, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_TRANSPARENT, dst=dst)
+    return warped, M
+
+def random_perspective_distortion_coords(points, M):
+    """
+    输入原图坐标 points，返回透视变换后的坐标
+    与 random_perspective_distortion(image) 结果一致
+    """
+    pts = np.asarray(points, dtype=np.float32)
+    ones = np.ones((pts.shape[0], 1), dtype=np.float32)
+    pts_homogeneous = np.hstack([pts, ones])  # 转为齐次坐标
+
+    transformed_pts = M @ pts_homogeneous.T  # 矩阵乘法
+    transformed_pts /= transformed_pts[2, :]  # 齐次坐标归一化
+
+    return transformed_pts[:2, :].T  # 返回二维坐标
+
+
+def random_distortion_seed(img,dst,points=None,seed=None):
+    # 锁定随机种子
+    if seed is not None:
+        # random.seed(seed)
+        np.random.seed(seed)
+
+    if points is None:
+        lt = (0,0)
+        rb = (img.shape[1]-1, img.shape[0]-1)  # 右下角
+        x_step = ( rb[0] - lt[0]) // 3
+        y_step = ( rb[1] - lt[1]) // 3
+        points = np.array([[lt[0] + i * x_step, lt[1] + j * y_step] for i in range(4) for j in range(4)], dtype=np.float32)
+
+    res_img = img
+    res_points = points
+    def random_nonlinear():
+        nonlocal res_img, res_points
+        intensity = np.random.uniform(0.05, 0.15)
+        res_img = nonlinear_distortion(img, intensity=intensity)
+        res_points = nonlinear_distortion_coords(points, img.shape[:2], intensity=intensity)
+    def random_wave():
+        nonlocal res_img, res_points
+        amplitude = np.random.uniform(10, 30)
+        frequency = np.random.uniform(0.0001, 0.004)
+        res_img = wave_distortion(img, amplitude=amplitude, frequency=frequency)
+        res_points = wave_distortion_coords(points, img.shape[:2], amplitude=amplitude, frequency=frequency)
+    def random_radial():
+        nonlocal res_img, res_points
+        strength = np.random.uniform(0.1, 0.5)
+        center_x = np.random.uniform(0.2, 0.8)
+        center_y = np.random.uniform(0.2, 0.8)
+        res_img = radial_distortion(img, strength=strength, center_x=center_x, center_y=center_y)
+        res_points = batch_distort_coordinates(points, img.shape[:2], strength=strength, center_x=center_x, center_y=center_y)
+    def random_random():
+        nonlocal res_img, res_points
+        grid_size = np.random.randint(5, 20)
+        max_displacement = np.random.randint(5, 20-grid_size+5)
+        res_img,displacement_field_x,displacement_field_y = random_distortion_field(img, grid_size=grid_size, max_displacement=max_displacement)
+        res_points = random_distortion_coords(points,displacement_field_x,displacement_field_y)
+
+    
+    # 随机选择一种扭曲方式
+    distortion_methods = [random_nonlinear, random_wave, random_radial, random_random]
+    np.random.choice(distortion_methods)()
+    res_img,M = random_perspective_distortion(res_img,dst=dst)
+    res_points = random_perspective_distortion_coords(res_points, M)
+    return res_img, res_points 
+
 ## 批量画点函数
 def get_cell_locs(img,points):
     for pt in points:
@@ -260,27 +354,39 @@ if __name__ == "__main__":
      # 测试各个扭曲函数
     
     
-    distorted_img = nonlinear_distortion(img, intensity=0.1)
-    distorted_points = nonlinear_distortion_coords(points, img.shape[:2], intensity=0.1)
-    get_cell_locs(distorted_img, distorted_points)
-    cv2.imshow('Nonlinear Distortion', distorted_img)
+    # distorted_img = nonlinear_distortion(img, intensity=0.1)
+    # distorted_points = nonlinear_distortion_coords(points, img.shape[:2], intensity=0.1)
+    # get_cell_locs(distorted_img, distorted_points)
+    # cv2.imshow('Nonlinear Distortion', distorted_img)
     
-    wave_img = wave_distortion(img, amplitude=20, frequency=0.002)
-    wave_points = wave_distortion_coords(points, img.shape[:2], amplitude=20, frequency=0.002)
-    get_cell_locs(wave_img, wave_points)
-    cv2.imshow('Wave Distortion', wave_img)
+    # wave_img = wave_distortion(img, amplitude=20, frequency=0.002)
+    # wave_points = wave_distortion_coords(points, img.shape[:2], amplitude=20, frequency=0.002)
+    # get_cell_locs(wave_img, wave_points)
+    # cv2.imshow('Wave Distortion', wave_img)
     
-    radial_img = radial_distortion(img, strength=0.3, center_x=0.3, center_y=0.7)
-    # points = np.array([[0,0], [img.shape[1]-1,0], [img.shape[1]-1,img.shape[0]-1], [0,img.shape[0]-1]], dtype=np.float32)
-    radial_points = batch_distort_coordinates(points, img.shape[:2], strength=0.3, center_x=0.3, center_y=0.7)
-    # cv2.polylines(radial_img, [np.int32(radial_points)], isClosed=True, color=(0, 255, 0), thickness=2)
-    get_cell_locs(radial_img, radial_points)
-    cv2.imshow('Radial Distortion', radial_img)
+    # radial_img = radial_distortion(img, strength=0.3, center_x=0.3, center_y=0.7)
+    # # points = np.array([[0,0], [img.shape[1]-1,0], [img.shape[1]-1,img.shape[0]-1], [0,img.shape[0]-1]], dtype=np.float32)
+    # radial_points = batch_distort_coordinates(points, img.shape[:2], strength=0.3, center_x=0.3, center_y=0.7)
+    # # cv2.polylines(radial_img, [np.int32(radial_points)], isClosed=True, color=(0, 255, 0), thickness=2)
+    # get_cell_locs(radial_img, radial_points)
+    # cv2.imshow('Radial Distortion', radial_img)
     
-    random_img,displacement_field_x,displacement_field_y = random_distortion_field(img, grid_size=10, max_displacement=15)
-    random_points = random_distortion_coords(points,displacement_field_x,displacement_field_y)
-    get_cell_locs(random_img, random_points)
-    cv2.imshow('Random Distortion Field', random_img)
+    # random_img,displacement_field_x,displacement_field_y = random_distortion_field(img, grid_size=10, max_displacement=15)
+    # random_points = random_distortion_coords(points,displacement_field_x,displacement_field_y)
+    # get_cell_locs(random_img, random_points)
+    # cv2.imshow('Random Distortion Field', random_img)
+
+    # perspective_img, M = random_perspective_distortion(img, img)
+    # perspective_points = random_perspective_distortion_coords(points, M)
+    # get_cell_locs(perspective_img, perspective_points)
+    # cv2.imshow('Perspective Distortion', perspective_img)
+    for _ in range(100):
+        img = np.zeros((768, 817,3), dtype=np.uint8)
+        cv2.rectangle(img, lt,rb, (255, 255, 255), -1)
+        distorted_img, distorted_points = random_distortion_seed(img,img,points=points,seed=None)
+        get_cell_locs(distorted_img, distorted_points)
+        cv2.imshow('Random Distortion Seed', distorted_img)
+        cv2.waitKey(0)
     
     cv2.waitKey(0)
     cv2.destroyAllWindows()

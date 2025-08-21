@@ -3,8 +3,17 @@
 # 生成器函数 循环从path路径读取图片文件
 import os
 import random
+os.environ['OPENCV_LOG_LEVEL'] = 'ERROR'
 import cv2
 import numpy as np
+import sys
+from PIL import Image
+
+SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
+SATASET_FILE_IMG = os.path.join(SATASET_FILE, 'img')
+SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'sudoku_dataset.npy')
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 def image_generator(path = './img/bg', shuffle=True):
     """
@@ -24,7 +33,7 @@ def image_generator(path = './img/bg', shuffle=True):
         if(random.random() > 0.5):
             dw = w//4
             dh = h//4
-            start_point = (random.randint(0, dh), random.randint(0, dw))
+            start_point = (random.randint(0, dw),random.randint(0, dh))
             dw2 = dw*3//4
             dh2 = dh*3//4
         else:
@@ -38,9 +47,9 @@ def image_generator(path = './img/bg', shuffle=True):
                                             (random.randint(0,dw2), random.randint(-dh2,0)+dh2*4)
                                             ], np.int32)
         # 在image上画出points区域并显示
-        cv2.polylines(image, [points], isClosed=True, color=(0,255,0), thickness=2)
-        # 画start_point
-        cv2.circle(image, tuple(start_point), 5, (0, 0, 255), -1)
+        # cv2.polylines(image, [points], isClosed=True, color=(0,255,0), thickness=2)
+        # # 画start_point
+        # cv2.circle(image, tuple(start_point), 5, (0, 0, 255), -1)
 
         resw = w//2
         resh = h//2
@@ -59,18 +68,240 @@ def image_generator(path = './img/bg', shuffle=True):
             if img is not None:
                 yield random_crop(img)
             else:
-                print(f"Warning: {img_path} is not a valid image file.")
+                # print(f"Warning: {img_path} is not a valid image file.")
+                try:
+                    pil_img = Image.open(img_path)
+                    img = np.array(pil_img)
+                    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                    yield random_crop(img)
+                except Exception as e:
+                    print(f"PIL读取也失败: {image_file} {e}")
 
 
-from .sudokuBg import generate_9x9_coordinates,generate_random_sudoku_background
-from dataAugmentation import random_augmentation
-from dataAugmentation import random_augmentation
 
-def random_augmentation_seed(img,seed):
-    # 锁定随机种子
-    random.seed(seed)
-    np.random.seed(seed)
-    return random_augmentation(img)
+def add_border(image, lrtb, color=(255, 255, 255,255)):
+    """
+    给图片添加边框 并转为rgba
+    
+    Args:
+        image: 输入图像
+        lrtb: 边框宽度 [左, 右, 上, 下] 或 统一宽度
+        color: 边框颜色 (B, G, R)
+    
+    Returns:
+        带边框的图像
+    """
+    # 处理lrtb参数
+    if isinstance(lrtb, int):
+        left = right = top = bottom = lrtb
+    elif len(lrtb) == 4:
+        left, right, top, bottom = lrtb
+    else:
+        raise ValueError("lrtb should be int or list of 4 integers")
+    
+    # 获取图像尺寸
+    h, w = image.shape[:2]
+    
+    # 计算新图像尺寸
+    new_h = h + top + bottom
+    new_w = w + left + right
+    
+    # # 创建新图像并填充边框颜色
+    # if len(image.shape) == 3:  # 彩色图像
+    #     bordered = np.full((new_h, new_w, 3), color, dtype=image.dtype)
+    # else:  # 灰度图像
+    #     bordered = np.full((new_h, new_w), color[0], dtype=image.dtype)
+    bordered = np.full((new_h, new_w, 4), color, dtype=image.dtype)
+    
+    # 将原图像放入中心
+    bordered[top:top+h, left:left+w,:3] = image
+    # bordered[top:top+h, left:left+w,3] = 255
+    
+    return bordered
+
+def overlay_rgba_on_rgb(rgb_bg, rgba_img):
+    """
+    将RGBA图片叠加到RGB背景上
+    
+    Args:
+        rgba_img: 带透明度的前景图像 (H, W, 4)
+        rgb_bg: RGB背景图像 (H, W, 3)
+    
+    Returns:
+        叠加后的RGB图像
+    """
+    # 确保背景图像是RGB
+    if len(rgb_bg.shape) == 2:
+        rgb_bg = cv2.cvtColor(rgb_bg, cv2.COLOR_GRAY2BGR)
+    
+    # 分离RGBA通道
+    foreground = rgba_img[:, :, :3]  # RGB通道
+    alpha = rgba_img[:, :, 3] / 255.0  # Alpha通道 (0-1)
+    
+    # 将alpha通道扩展为3通道
+    alpha = np.stack([alpha, alpha, alpha], axis=-1)
+    
+    # 计算叠加结果
+    result = foreground * alpha + rgb_bg * (1 - alpha)
+    
+    return result.astype(np.uint8)
+
+
+'''
+填充数字数据
+'''
+
+from tensorflow.keras.datasets import mnist
+
+# 加载MNIST数据
+((trainData, trainLabels), (testData, testLabels)) = mnist.load_data()
+
+def draw_mnist_on_image(img, points, fill_rate=0.3):
+    """
+    根据填充率将MNIST数字随机绘制到图像上
+    
+    Args:
+        img: 背景图像
+        points: 起始坐标列表 [(x1,y1), (x2,y2), ...]
+        fill_rate: 数据填充率 (0.2-0.5)
+    """
+    h, w = img.shape[:2]
+    
+    # 计算需要绘制的数字数量
+    num_points = len(points)
+    num_to_draw = int(num_points * fill_rate)
+    
+    # 随机选择要绘制的数字和位置
+    indices = np.random.choice(len(trainData), num_to_draw, replace=False)
+    point_indices = np.random.choice(num_points, num_to_draw, replace=False)
+    
+    for i, point_idx in enumerate(point_indices):
+        # 获取MNIST数字和对应的坐标
+        digit = trainData[indices[i]]
+        # digit随机放大1-2倍
+        scale = random.uniform(1.0, 2.0)
+        offset = int((28*2 - 28*scale)//2)
+        digit = 255 - digit
+        digit = cv2.resize(digit, (int(28*scale), int(28*scale)))
+        # 变成rgba
+        digit = np.stack([digit]*3 + [digit], axis=-1)
+        digit[:,:,3] = 255-digit[:,:,3]
+        x, y = points[point_idx]
+        x+= offset
+        y+= offset
+        # 确保坐标在图像范围内
+        if x + digit.shape[1] <= w and y + digit.shape[0] <= h:
+            # 将数字绘制到图像上（黑色数字）
+            # img[y:y+digit.shape[0], x:x+digit.shape[1]] = np.minimum(img[y:y+digit.shape[0], x:x+digit.shape[1]], digit)
+            
+            alpha = digit[..., 3] / 255.0  # 获取 alpha 通道并归一化
+            img[y:y+digit.shape[0], x:x+digit.shape[1], :3] = (
+                alpha[..., np.newaxis] * digit[..., :3] +
+                (1 - alpha[..., np.newaxis]) * img[y:y+digit.shape[0], x:x+digit.shape[1], :3]
+            )
+    
+    return img
+
+
+
+datainfo=[
+    {'text':'FONT_HERSHEY_SIMPLEX',         'font':cv2.FONT_HERSHEY_SIMPLEX,'count':10000},
+    # {'text':'FONT_HERSHEY_PLAIN',           'font':cv2.FONT_HERSHEY_PLAIN ,'count':10000},
+    {'text':'FONT_HERSHEY_DUPLEX',          'font':cv2.FONT_HERSHEY_DUPLEX ,'count':10000},
+    {'text':'FONT_HERSHEY_COMPLEX',         'font':cv2.FONT_HERSHEY_COMPLEX ,'count':10000},
+    {'text':'FONT_HERSHEY_TRIPLEX',         'font':cv2.FONT_HERSHEY_TRIPLEX ,'count':10000},
+    # {'text':'FONT_HERSHEY_COMPLEX_SMALL',   'font':cv2.FONT_HERSHEY_COMPLEX_SMALL ,'count':10000},
+    {'text':'FONT_HERSHEY_SCRIPT_SIMPLEX',  'font':cv2.FONT_HERSHEY_SCRIPT_SIMPLEX ,'count':10000},
+    {'text':'FONT_HERSHEY_SCRIPT_COMPLEX',  'font':cv2.FONT_HERSHEY_SCRIPT_COMPLEX ,'count':10000},
+    {'text':'FONT_ITALIC',                  'font':cv2.FONT_ITALIC ,'count':10000},
+]
+
+thickness=[2,4,6,8]
+srcshap = [28*2,28*2]
+digitSrc = []
+for index,item in enumerate(datainfo):
+    row = []
+    print(index,item)
+    for num in range(10):
+        thi = []
+        for t in thickness:
+            im = np.zeros(srcshap,np.uint8)
+            cv2.putText(
+                im,
+                str(num),
+                (8,48), #(x,y)
+                item['font'],
+                2,255,t,
+                # bottomLeftOrigin=True
+            )
+            thi.append(im)
+        row.append(thi)
+    digitSrc.append(row)
+
+digitSrc = np.asarray(digitSrc,dtype = 'uint8')
+
+
+def draw_digits_from_src(img, points, fill_rate=0.3):
+    """
+    从digitSrc数组中随机选取数字绘制到图像上
+    
+    Args:
+        img: 背景图像
+        points: 起始坐标列表 [(x1,y1), (x2,y2), ...]
+        digitSrc: 数字源数组 [fontFace, digit, thickness]
+        fill_rate: 数据填充率 (0.2-0.5)
+    """
+    global digitSrc
+    h, w = img.shape[:2]
+    
+    # 计算需要绘制的数字数量
+    num_points = len(points)
+    num_to_draw = int(num_points * fill_rate)
+    
+    # 随机选择要绘制的数字和位置
+    digitSrcShape = digitSrc.shape
+    indices = [ (np.random.randint(0, digitSrcShape[0]),
+                 np.random.randint(0, digitSrcShape[1]),
+                    np.random.randint(0, digitSrcShape[2])) for _ in range(num_to_draw)]
+    point_indices = np.random.choice(num_points, num_to_draw, replace=False)
+    
+    for i, point_idx in enumerate(point_indices):
+        # 获取数字数据和对应的坐标
+        digit = digitSrc[indices[i][0], indices[i][1], indices[i][2]]
+
+        # digit随机放大0.5-1倍
+        scale = random.uniform(0.5,1)
+        offset = int(28*2 * (1 - scale)//2)
+        digit = 255 - digit
+        digit = cv2.resize(digit, (int(28*2*scale), int(28*2*scale)))
+        # 变成rgba
+        digit = np.stack([digit]*3 + [digit], axis=-1)
+        digit[:,:,3] = 255-digit[:,:,3]
+        x, y = points[point_idx]
+        x+= offset
+        y+= offset
+
+        
+        if x + digit.shape[1] <= w and y + digit.shape[0] <= h:
+            alpha = digit[..., 3] / 255.0  # 获取 alpha 通道并归一化
+            img[y:y+digit.shape[0], x:x+digit.shape[1], :3] = (
+                alpha[..., np.newaxis] * digit[..., :3] +
+                (1 - alpha[..., np.newaxis]) * img[y:y+digit.shape[0], x:x+digit.shape[1], :3]
+            )
+        
+def random_draw_digits(img, points, fill_rate=0.3):
+    if random.random() > 0.5:
+        draw_mnist_on_image(img, points, fill_rate)
+    else:
+        draw_digits_from_src(img, points, fill_rate)
+
+    return img
+
+
+from sudokuBg import generate_9x9_coordinates,generate_3x3_coordinates,generate_random_sudoku_background
+from dataAugmentation import random_augmentation2
+from dataAugmentation import random_distortion_seed
+from tqdm import tqdm
 
 '''
 1 获取随机背景
@@ -89,20 +320,85 @@ def random_augmentation_seed(img,seed):
 '''
 # 60000 10000
 # 80000 20000
-for i in range(100):
+trainDataCount = 80000
+testDataCount = 20000
+res_trainData = []
+res_trainHas = []
+res_trainPoints = []
+res_testData = []
+res_testHas = []
+res_testPoints = []
+for i in tqdm(range(trainDataCount + testDataCount), desc="处理进度"):
     gen = image_generator()
     bg,src = next(gen)
-    cv2.imshow('bg', bg)
-    cv2.imshow('src', src)
+    # cv2.imshow('bg', bg)
+    # cv2.imshow('src', src)
 
-    sudoku_points = generate_9x9_coordinates()
-    # 生成随机数独背景
-    sudoku_bg = generate_random_sudoku_background()
-    # 背景添加随机噪声
-    sudoku_bg = random_augmentation(sudoku_bg)
+    has_sudoku = False
 
+    key_points = np.array( [[0,0]]*16,np.int16)
 
+    if random.random()>0.15:
+        has_sudoku = True
+        sudoku_points = generate_9x9_coordinates() # 画数字用
+        key_points = generate_3x3_coordinates() # 关键坐标点
+        # 生成随机数独背景
+        sudoku_bg = generate_random_sudoku_background()
+        lrtb = [random.randint(5,80) for _ in range(4)]
+        sudoku_points += np.array([lrtb[0], lrtb[2]])
+        key_points += np.array([lrtb[0], lrtb[2]])
+        # 背景添加随机噪声
+        noic_img = 255 - random_augmentation2(np.zeros(shape= sudoku_bg.shape[:2], dtype=np.uint8))
+        noic_img = np.stack([noic_img]*3, axis=-1)
+        sudoku_bg = np.minimum(sudoku_bg,noic_img)
+        sudoku_bg = add_border(sudoku_bg, lrtb)
+        # sudoku_bg四条边设为透明
+        sudoku_bg[:, 0, 3] = 0
+        sudoku_bg[:, -1, 3] = 0
+        sudoku_bg[0, :, 3] = 0
+        sudoku_bg[-1, :, 3] = 0
+        sudoku_bg[:,:, 3] = 200 #random.randint(160, 255)
+        # draw_mnist_on_image(sudoku_bg, sudoku_points, fill_rate=random.uniform(0.2, 0.5))
+        random_draw_digits(sudoku_bg, sudoku_points, fill_rate=random.uniform(0.2, 0.5))
+        # 尺寸为bg的rgba图片填充(0,0,0,0)
+        temp_bg = np.zeros((bg.shape[0], bg.shape[1], 4), dtype=np.uint8)
 
-    seed = random.randint(0, 10000000)
+        seed = random.randint(0, 10000000)
+        _,key_points = random_distortion_seed(sudoku_bg,temp_bg,key_points, seed=seed)
 
-    cv2.waitKey(0)
+        bg = overlay_rgba_on_rgb(bg,temp_bg)
+
+    # bg 保存图片,文件名为000_000.png
+    fileName = f"{i//1000:03d}_{i%1000:03d}.png"
+    cv2.imwrite(os.path.join(SATASET_FILE_IMG, fileName), bg)
+    key_points = key_points.astype(np.float32)
+
+    if(i < trainDataCount):
+        res_trainData.append(fileName)
+        res_trainHas.append(has_sudoku)
+        res_trainPoints.append(key_points)
+    else:
+        res_testData.append(fileName)
+        res_testHas.append(has_sudoku)
+        res_testPoints.append(key_points)
+    # cv2.imshow('bg', bg)
+    # cv2.imshow('temp_bg', temp_bg)
+    # cv2.imshow('temp_bg1', temp_bg[:, :, 3])
+    # cv2.waitKey(0)
+
+def objectArray(*args):
+    res = np.zeros( len(args),object)
+    for i,item in enumerate(args):
+        res[i] = item
+    return res
+
+print(f'res_trainData len:{len(res_trainData)}, res_testData len:{len(res_testData)}')
+print(f'保存数据文件')
+np.save( # 会覆盖旧文件
+    SATASET_FILE_NPY,
+    (
+        objectArray(res_trainData, res_trainHas,res_trainPoints),
+        objectArray(res_testData, res_testHas,res_testPoints)
+    )
+)
+print(f'保存结束')

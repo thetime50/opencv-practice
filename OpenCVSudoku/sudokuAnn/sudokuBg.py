@@ -6,7 +6,7 @@ from typing import List, Tuple
 '''
 背景生成
 '''
-
+DEBUG = False
 
 # 基础颜色定义
 WHITE = (255, 255, 255)
@@ -19,6 +19,8 @@ def generate_9x9_grid_background(border_type: str = "single", bg_type: str = "wh
     """
     生成9×9网格背景，支持内外格线双线效果
     """
+    if DEBUG:
+        print(f"generate_9x9_grid_background: border_type={border_type}, bg_type={bg_type}")
     # 创建基础画布
     img = np.ones((504, 504, 3), dtype=np.uint8) * 255
     
@@ -40,7 +42,15 @@ def generate_9x9_grid_background(border_type: str = "single", bg_type: str = "wh
             cv2.rectangle(img, (j*56, 0), ((j+1)*56, 504), color, -1)
     
     # 绘制网格线
-    if border_type != "none":
+    if border_type == "none":
+        if bg_type == "white":
+            # 画9x9个 边长为56-random(2,32)填充的圆角矩形
+            gep = random.randint(1, 16)
+            fill = -1 if random.random() > 0.5 else 1
+            for i in range(9):
+                for j in range(9):
+                    cv2.rectangle(img, (j*56+gep, i*56+gep), ((j+1)*56-gep, (i+1)*56-gep), (200, 200, 200), fill)
+    else:
         if border_type == "double":
             # 绘制9×9细网格双线
             for i in range(1, 9):
@@ -84,6 +94,8 @@ def generate_3x3_grid_background(border_type: str = "single", bg_type: str = "wh
     """
     生成3×3大格子背景，支持内外格线双线效果
     """
+    if DEBUG:
+        print(f"generate_3x3_grid_background: border_type={border_type}, bg_type={bg_type}")
     # 创建基础画布
     img = np.ones((504, 504, 3), dtype=np.uint8) * 255
     
@@ -97,7 +109,15 @@ def generate_3x3_grid_background(border_type: str = "single", bg_type: str = "wh
                 cv2.rectangle(img, (j*168, i*168), ((j+1)*168, (i+1)*168), color, -1)
     
     # 绘制网格线
-    if border_type != "none":
+    if border_type == "none":
+        if bg_type == "white":
+            # 画9x9个 边长为56-random(2,32)填充的圆角矩形
+            gep = random.randint(1, 16)
+            fill = -1 if random.random() > 0.5 else 1
+            for i in range(9):
+                for j in range(9):
+                    cv2.rectangle(img, (j*56+gep, i*56+gep), ((j+1)*56-gep, (i+1)*56-gep), (200, 200, 200), fill)
+    else:
         if border_type == "double":
             # 绘制3×3粗网格双线
             for i in range(1, 3):
@@ -132,6 +152,8 @@ def generate_background_with_random_highlight(bg_type: str = "white") -> np.ndar
     Returns:
         504×504的numpy数组图像
     """
+    if DEBUG:
+        print(f"generate_background_with_random_highlight: bg_type={bg_type}")
     # 首先生成基础背景
     if bg_type == "3x3":
         img = generate_3x3_grid_background("single", "white")
@@ -142,20 +164,23 @@ def generate_background_with_random_highlight(bg_type: str = "white") -> np.ndar
     rows_to_highlight = random.sample(range(9), random.randint(1, 3))
     cols_to_highlight = random.sample(range(9), random.randint(1, 3))
     
+    # 填充255 likeimg
+    img2 = np.full_like(img, 255, dtype=np.uint8)
     # 加深选中的行
     for row in rows_to_highlight:
-        cv2.rectangle(img, 
+        cv2.rectangle(img2, 
                      (0, row*56), 
                      (504, (row+1)*56), 
                      DARK_GRAY, -1)
     
     # 加深选中的列
     for col in cols_to_highlight:
-        cv2.rectangle(img, 
+        cv2.rectangle(img2, 
                      (col*56, 0), 
                      ((col+1)*56, 504), 
                      DARK_GRAY, -1)
     
+    img = np.minimum(img, img2)
     return img
 
 def generate_9x9_coordinates() -> List[Tuple[int, int]]:
@@ -169,8 +194,24 @@ def generate_9x9_coordinates() -> List[Tuple[int, int]]:
     for i in range(9):
         for j in range(9):
             # 计算每个小格子的中心坐标
-            x = j * 56 + 28  # 56是每个小格子的宽度，28是中心偏移
-            y = i * 56 + 28  # 56是每个小格子的高度，28是中心偏移
+            x = j * 56  # 56是每个小格子的宽度，28是中心偏移
+            y = i * 56  # 56是每个小格子的高度，28是中心偏移
+            coordinates.append((x, y))
+    return coordinates
+
+def generate_3x3_coordinates() -> List[Tuple[int, int]]:
+    """
+    生成9×9九宫格的坐标点
+    
+    Returns:
+        81个坐标点的列表，每个点是小格子的中心坐标
+    """
+    coordinates = []
+    for i in range(4):
+        for j in range(4):
+            # 计算每个小格子的中心坐标
+            x = j * 56*3  # 56是每个小格子的宽度，28是中心偏移
+            y = i * 56*3  # 56是每个小格子的高度，28是中心偏移
             coordinates.append((x, y))
     return coordinates
 
