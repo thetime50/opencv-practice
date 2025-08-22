@@ -248,22 +248,39 @@ def random_distortion_coords(points, displacement_field_x, displacement_field_y)
 
 def random_perspective_distortion(img,dst):
     src_points = np.int32([[0, 0], [img.shape[1]-1, 0], [img.shape[1]-1, img.shape[0]-1], [0, img.shape[0]-1]])
-    h, w = dst.shape[:2]
+    dh, dw = dst.shape[:2]
 
-    rate = np.random.uniform(0.5, 0.99)
+    # rate = np.random.uniform(0.5, 0.99)
 
-    rw = w*rate
-    rh = h*rate
-    start_point = np.array((np.random.randint(0, w-rw),np.random.randint(0, h-rh)), np.int32)
-    dw2 = rw//4
-    dh2 = rh//4
-    dst_points = start_point + np.array([(np.random.randint(0,dw2), np.random.randint(0,dh2)),
-                                            (np.random.randint(-dw2,0)+dw2*4, np.random.randint(0,dh2)),
-                                            (np.random.randint(-dw2,0)+dw2*4, np.random.randint(-dh2,0)+dh2*4),
-                                            (np.random.randint(0,dw2), np.random.randint(-dh2,0)+dh2*4)
-                                            ], np.int32)
+    # rw = w*rate
+    # rh = h*rate
+    # start_point = np.array((np.random.randint(0, w-rw),np.random.randint(0, h-rh)), np.int32)
+    # dw2 = rw//4
+    # dh2 = rh//4
+    # dst_points = start_point + np.array([(np.random.randint(0,dw2), np.random.randint(0,dh2)),
+    #                                         (np.random.randint(-dw2,0)+dw2*4, np.random.randint(0,dh2)),
+    #                                         (np.random.randint(-dw2,0)+dw2*4, np.random.randint(-dh2,0)+dh2*4),
+    #                                         (np.random.randint(0,dw2), np.random.randint(-dh2,0)+dh2*4)
+    #                                         ], np.int32)
+
+    # 最小尺寸
+    cw = int(dw//2)
+    ch = int(dh//2)
+    gep_w = cw//4
+    gep_h = ch//4
+
+    # dw-2*gep_w-cw > 0
+    # dh-2*gep_h-ch > 0
+    start_point = np.array((np.random.randint(0, dw-2*gep_w-cw),np.random.randint(0, dh-2*gep_h-ch)), np.int32)
+    temp = min(dw-start_point[0]-2*gep_w-cw,dh-start_point[1]-2*gep_h-ch)
+    end_range = np.array((2*gep_w+cw,2*gep_h+ch), np.int32) +np.random.randint(0,temp)
+    dst_points = start_point + np.array([(np.random.randint(0,gep_w), np.random.randint(0,gep_h)),
+                                        (np.random.randint(-gep_w,0)+end_range[0], np.random.randint(0,gep_h)),
+                                        (np.random.randint(-gep_w,0)+end_range[0], np.random.randint(-gep_h,0)+end_range[1]),
+                                        (np.random.randint(0,gep_w), np.random.randint(-gep_h,0)+end_range[1])
+                                        ], np.int32)
     M = cv2.getPerspectiveTransform(src_points.astype(np.float32), dst_points.astype(np.float32))
-    warped = cv2.warpPerspective(img, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_TRANSPARENT, dst=dst)
+    warped = cv2.warpPerspective(img, M, (dw, dh), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_TRANSPARENT, dst=dst)
     return warped, M
 
 def random_perspective_distortion_coords(points, M):

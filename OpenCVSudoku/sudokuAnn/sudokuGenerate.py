@@ -15,7 +15,7 @@ SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'sudoku_dataset.npy')
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-def image_generator(path = './img/bg', shuffle=True):
+def image_generator(path = './img/bg',width=384,height=384, shuffle=True):
     """
     从指定路径循环读取图片文件，返回生成器。
     
@@ -30,29 +30,25 @@ def image_generator(path = './img/bg', shuffle=True):
     # 传入一个图片任意截取
     def random_crop(image, ):
         h, w = image.shape[:2]
-        if(random.random() > 0.5):
-            dw = w//4
-            dh = h//4
-            start_point = (random.randint(0, dw),random.randint(0, dh))
-            dw2 = dw*3//4
-            dh2 = dh*3//4
-        else:
-            start_point = (0,0)
-            dw2 = w//4
-            dh2 = h//4
-        start_point = np.array(start_point, np.int32)
-        points = start_point + np.array([(random.randint(0,dw2), random.randint(0,dh2)),
-                                            (random.randint(-dw2,0)+dw2*4, random.randint(0,dh2)),
-                                            (random.randint(-dw2,0)+dw2*4, random.randint(-dh2,0)+dh2*4),
-                                            (random.randint(0,dw2), random.randint(-dh2,0)+dh2*4)
+        cw = width
+        ch = height
+        gep_w = cw//4
+        gep_h = ch//4
+        start_point = np.array((random.randint(0, w-2*gep_w-cw),random.randint(0, h-2*gep_h-ch)), np.int32)
+        temp = min(w-start_point[0]-2*gep_w-cw,h-start_point[1]-2*gep_h-ch)
+        end_range = np.array((2*gep_w+cw,2*gep_h+ch), np.int32) +random.randint(0,temp)
+        points = start_point + np.array([(random.randint(0,gep_w), random.randint(0,gep_h)),
+                                            (random.randint(-gep_w,0)+end_range[0], random.randint(0,gep_h)),
+                                            (random.randint(-gep_w,0)+end_range[0], random.randint(-gep_h,0)+end_range[1]),
+                                            (random.randint(0,gep_w), random.randint(-gep_h,0)+end_range[1])
                                             ], np.int32)
-        # 在image上画出points区域并显示
+        # # 在image上画出points区域并显示
         # cv2.polylines(image, [points], isClosed=True, color=(0,255,0), thickness=2)
-        # # 画start_point
+        # # # 画start_point
         # cv2.circle(image, tuple(start_point), 5, (0, 0, 255), -1)
 
-        resw = w//2
-        resh = h//2
+        resw = width
+        resh = height
         # 将points区域变换到resw*resh的新图片输出
         dst_points = np.array([(0,0), (resw,0), (resw,resh), (0,resh)], np.float32)
         M = cv2.getPerspectiveTransform(points.astype(np.float32), dst_points)
@@ -299,8 +295,7 @@ def random_draw_digits(img, points, fill_rate=0.3):
 
 
 from sudokuBg import generate_9x9_coordinates,generate_3x3_coordinates,generate_random_sudoku_background
-from dataAugmentation import random_augmentation2
-from dataAugmentation import random_distortion_seed
+from dataAugmentation import random_augmentation2,random_distortion_seed,get_cell_locs
 from tqdm import tqdm
 
 '''
@@ -316,8 +311,16 @@ from tqdm import tqdm
     生成随机数字 随机颜色
     画出数据
 7 随机反色
-7 数独按变换添加到背景上
+8 数独按变换添加到背景上
+
+1 图片尺寸调整
+    960*540 -> 384*384
+    28*2*9=504 28*9=252
+2 噪声调整
 '''
+NO_SUDOKU_RATE = 0.12
+INVERSE_RATE = 0.08
+
 # 60000 10000
 # 80000 20000
 trainDataCount = 80000
@@ -328,17 +331,20 @@ res_trainPoints = []
 res_testData = []
 res_testHas = []
 res_testPoints = []
+temp_bg = None
 for i in tqdm(range(trainDataCount + testDataCount), desc="处理进度"):
     gen = image_generator()
     bg,src = next(gen)
     # cv2.imshow('bg', bg)
     # cv2.imshow('src', src)
+    # cv2.waitKey(0)
+    # continue
 
     has_sudoku = False
 
     key_points = np.array( [[0,0]]*16,np.int16)
 
-    if random.random()>0.15:
+    if random.random()>NO_SUDOKU_RATE:
         has_sudoku = True
         sudoku_points = generate_9x9_coordinates() # 画数字用
         key_points = generate_3x3_coordinates() # 关键坐标点
@@ -347,10 +353,6 @@ for i in tqdm(range(trainDataCount + testDataCount), desc="处理进度"):
         lrtb = [random.randint(5,80) for _ in range(4)]
         sudoku_points += np.array([lrtb[0], lrtb[2]])
         key_points += np.array([lrtb[0], lrtb[2]])
-        # 背景添加随机噪声
-        noic_img = 255 - random_augmentation2(np.zeros(shape= sudoku_bg.shape[:2], dtype=np.uint8))
-        noic_img = np.stack([noic_img]*3, axis=-1)
-        sudoku_bg = np.minimum(sudoku_bg,noic_img)
         sudoku_bg = add_border(sudoku_bg, lrtb)
         # sudoku_bg四条边设为透明
         sudoku_bg[:, 0, 3] = 0
@@ -358,11 +360,21 @@ for i in tqdm(range(trainDataCount + testDataCount), desc="处理进度"):
         sudoku_bg[0, :, 3] = 0
         sudoku_bg[-1, :, 3] = 0
         sudoku_bg[:,:, 3] = 200 #random.randint(160, 255)
-        # draw_mnist_on_image(sudoku_bg, sudoku_points, fill_rate=random.uniform(0.2, 0.5))
+        # 背景添加随机噪声
+        # noic_img = 255 - random_augmentation2(np.zeros(shape= sudoku_bg.shape[:2], dtype=np.uint8))
+        # noic_img = np.stack([noic_img]*3, axis=-1)
+        # sudoku_bg = np.minimum(sudoku_bg,noic_img)
+        noic_img = random_augmentation2(np.zeros(shape= sudoku_bg.shape[:2], dtype=np.uint8))
+        noic_mix_img = np.clip(sudoku_bg[:,:,0] - noic_img, 0, 255).astype(noic_img.dtype)
+        sudoku_bg[:,:,:3] = np.stack([noic_mix_img]*3, axis=-1)
         random_draw_digits(sudoku_bg, sudoku_points, fill_rate=random.uniform(0.2, 0.5))
+        # 随机反色
+        if random.random()<INVERSE_RATE:
+            sudoku_bg[:,:,:3] = 255-sudoku_bg[:,:,:3]
+        
+        # 扭曲变换图片
         # 尺寸为bg的rgba图片填充(0,0,0,0)
         temp_bg = np.zeros((bg.shape[0], bg.shape[1], 4), dtype=np.uint8)
-
         seed = random.randint(0, 10000000)
         _,key_points = random_distortion_seed(sudoku_bg,temp_bg,key_points, seed=seed)
 
@@ -381,9 +393,12 @@ for i in tqdm(range(trainDataCount + testDataCount), desc="处理进度"):
         res_testData.append(fileName)
         res_testHas.append(has_sudoku)
         res_testPoints.append(key_points)
+
+    # # get_cell_locs(bg,key_points)
+    # cv2.imshow('src', src)
     # cv2.imshow('bg', bg)
-    # cv2.imshow('temp_bg', temp_bg)
-    # cv2.imshow('temp_bg1', temp_bg[:, :, 3])
+    # if temp_bg is not None: cv2.imshow('temp_bg', temp_bg)
+    # # cv2.imshow('temp_bg1', temp_bg[:, :, 3])
     # cv2.waitKey(0)
 
 def objectArray(*args):
@@ -402,3 +417,4 @@ np.save( # 会覆盖旧文件
     )
 )
 print(f'保存结束')
+# 处理进度: 100%|██████████████████████| 100000/100000 [4:02:15<00:00,  6.88it/s]
