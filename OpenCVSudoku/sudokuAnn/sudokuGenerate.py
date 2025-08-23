@@ -9,11 +9,14 @@ import numpy as np
 import sys
 from PIL import Image
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+print("启动")
+
 SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
 SATASET_FILE_IMG = os.path.join(SATASET_FILE, 'img')
 SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'sudoku_dataset.npy')
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 def image_generator(path = './img/bg',width=384,height=384, shuffle=True):
     """
@@ -418,3 +421,4 @@ np.save( # 会覆盖旧文件
 )
 print(f'保存结束')
 # 处理进度: 100%|██████████████████████| 100000/100000 [4:02:15<00:00,  6.88it/s]
+# 处理进度: 100%|██████████████████████| 100000/100000 [3:27:02<00:00,  8.05it/s]
