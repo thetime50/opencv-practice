@@ -1,6 +1,6 @@
 import os
 import tensorflow as tf
-from tensorflow.keras import layers, models, losses, optimizers
+from tensorflow.keras import layers, models, losses, optimizers,regularizers
 
 print('启动')
 SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
@@ -32,7 +32,7 @@ class ConditionalKeypointLoss(tf.keras.losses.Loss):
         mask = tf.expand_dims(has_sudoku_true, axis=-1)  # shape [batch,1]
         reg_loss = tf.reduce_mean(tf.square((keypoints_true - keypoints_pred) * mask), axis=-1)
 
-        return cls_loss + reg_loss
+        return cls_loss + reg_loss*1000
 
 class ConditionalKeypointLoss2(tf.keras.losses.Loss):
     def call(self, y_true, y_pred):
@@ -80,25 +80,48 @@ def build_model():
     inputs = layers.Input(shape=(None, None, 1))  # 任意尺寸输入
 
     # Backbone 卷积
-    x = layers.Conv2D(32, 3, activation="relu", padding="same")(inputs)
-    x = layers.MaxPooling2D(2)(x)
-    x = layers.Conv2D(64, 3, activation="relu", padding="same")(x)
-    x = layers.MaxPooling2D(2)(x)
-    x = layers.Conv2D(128, 3, activation="relu", padding="same")(x)
-    x = layers.MaxPooling2D(2)(x)
+    # x = layers.Conv2D(32, 3, activation="relu", padding="same")(inputs)
+    # x = layers.MaxPooling2D(2)(x)
+    # x = layers.Conv2D(64, 3, activation="relu", padding="same")(x)
+    # x = layers.MaxPooling2D(2)(x)
+    # x = layers.Conv2D(128, 3, activation="relu", padding="same")(x)
+    # x = layers.MaxPooling2D(2)(x)
+
+    # 收敛更快 看看能不能突破无法收敛的问题
+    def residualConnection(filters,shortcut,pooling = True):
+        x = layers.Conv2D(filters, 3, padding="same", activation=None)(shortcut)
+        x = layers.BatchNormalization()(x)
+        x = layers.ReLU()(x)
+        x = layers.Conv2D(filters, 3, padding="same", activation=None)(x)
+        x = layers.BatchNormalization()(x)
+        if shortcut.shape[-1] != filters:
+            shortcut = layers.Conv2D(filters, 1, padding="same")(shortcut)
+        x = layers.Add()([x, shortcut])  # 残差连接
+        x = layers.ReLU()(x)
+        if(pooling):
+            x = layers.MaxPooling2D(2)(x)
+
+        return x
+    
+    x = residualConnection(32,inputs)
+    x = residualConnection(64,x)
+    x = residualConnection(128,x)
+    # x = residualConnection(128,x,False) # 加了一层 卡在loss: 5.4433 - val_loss: 5.2975
 
     # 全局池化
     x = layers.GlobalAveragePooling2D()(x)
 
     # 公共特征层
-    shared = layers.Dense(256, activation="relu")(x)
-    shared = layers.Dense(128, activation="relu")(shared)
+    shared = layers.Dense(256, activation="relu",)(x) # kernel_regularizer=regularizers.l2(0.01)
+    shared = layers.Dropout(0.3)(shared)
+    shared = layers.Dense(128, activation="relu",)(shared) # kernel_regularizer=regularizers.l2(0.01)
 
     # 输出1: 是否有数独
     has_sudoku = layers.Dense(1, activation="sigmoid", name="has_sudoku")(shared)
 
     # 输出2: 关键点 (32个数, 归一化坐标)
-    keypoints = layers.Dense(256, activation="relu")(shared)
+    keypoints = layers.Dense(256, activation="relu",)(shared) # kernel_regularizer=regularizers.l2(0.01)
+    keypoints = layers.Dropout(0.3)(keypoints)
     keypoints = layers.Dense(32, activation="sigmoid", name="points")(keypoints)
 
     # 拼接成一个整体输出 (方便自定义损失)
@@ -108,10 +131,49 @@ def build_model():
     return model
 
 
+
+
+def build_model_d():
+    """
+    创建支持任意尺寸的数独检测模型
+    输出: [是否有数独, 16个关键点坐标(x1,y1,x2,y2,...,x16,y16)]
+    """
+    inputs = layers.Input(shape=(None, None, 1))  # 任意尺寸输入
+    
+    # 特征提取 backbone (全卷积架构)
+    x = layers.Conv2D(32, 3, activation='relu', padding='same')(inputs)
+    x = layers.MaxPooling2D()(x)
+    x = layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+    x = layers.MaxPooling2D()(x)
+    x = layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+    x = layers.MaxPooling2D()(x)
+    x = layers.Conv2D(256, 3, activation='relu', padding='same')(x)
+    
+    # 全局特征提取
+    global_features = layers.GlobalAveragePooling2D()(x)
+    
+    # 是否有数独的分类头
+    classification = layers.Dense(128, activation='relu')(global_features)
+    classification = layers.Dropout(0.3)(classification)
+    classification = layers.Dense(64, activation='relu')(classification)
+    classification_output = layers.Dense(1, activation='sigmoid', name='has_sudoku')(classification)
+    
+    # 关键点回归头 (16个点 * 2坐标 = 32个值)
+    regression = layers.Dense(256, activation='relu')(global_features)
+    regression = layers.Dropout(0.3)(regression)
+    regression = layers.Dense(128, activation='relu')(regression)
+    regression = layers.Dense(64, activation='relu')(regression)
+    regression_output = layers.Dense(32, activation='sigmoid', name='keypoints')(regression)  # 归一化坐标
+    
+    model = models.Model(inputs=inputs, outputs=[classification_output, regression_output])
+    return model
+
+
 # --------------------------
 # 模型编译
 # --------------------------
-model = build_model()
+# model = build_model()
+model = build_model_d()
 model.compile(
     optimizer=optimizers.Adam(1e-4),
     loss=ConditionalKeypointLoss2(),
@@ -166,8 +228,20 @@ test_ds = test_ds.map(parse_fn, num_parallel_calls=tf.data.AUTOTUNE)
 test_ds = test_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
 model = build_model()  # 上面回答里给的模型
+# 固定学习率
+# optimizer=tf.keras.optimizers.Adam(1e-4)
+# 动态学习率
+# lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+#     initial_learning_rate=5e-3, decay_steps=1000, decay_rate=0.9)
+# optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+# 或者使用余弦退火
+lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
+    initial_learning_rate=1e-3, decay_steps=1000
+)
+optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(1e-4),
+    optimizer=optimizer,
     loss=ConditionalKeypointLoss()
 )
 
@@ -181,7 +255,7 @@ if os.path.exists(MODEL_TEMP_FILE):
 print('开始训练')
 checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     MODEL_TEMP_FILE,
-    save_weights_only=True,
+    save_weights_only=False, # True,
     save_best_only=True
 )
 model.fit(
@@ -208,44 +282,25 @@ print('结束')
 # print("Points shape:", points_pred.shape)
 
 
-# 5000/5000 [==============================] - 439s 86ms/step - loss: 0.1872 - val_loss: 0.0804
-# Epoch 2/20
-# 5000/5000 [==============================] - 425s 85ms/step - loss: 0.0596 - val_loss: 0.0442
-# Epoch 3/20
-# 5000/5000 [==============================] - 408s 82ms/step - loss: 0.0397 - val_loss: 0.0313
-# Epoch 4/20
-# 5000/5000 [==============================] - 407s 81ms/step - loss: 0.0305 - val_loss: 0.0263
-# Epoch 5/20
-# 5000/5000 [==============================] - 406s 81ms/step - loss: 0.0246 - val_loss: 0.0207
-# Epoch 6/20
-# 5000/5000 [==============================] - 404s 81ms/step - loss: 0.0207 - val_loss: 0.0194
-# Epoch 7/20
-# 5000/5000 [==============================] - 403s 81ms/step - loss: 0.0182 - val_loss: 0.0170
-# Epoch 8/20
-# 5000/5000 [==============================] - 401s 80ms/step - loss: 0.0165 - val_loss: 0.0156
-# Epoch 9/20
-# 5000/5000 [==============================] - 401s 80ms/step - loss: 0.0150 - val_loss: 0.0145
-# Epoch 10/20
-# 5000/5000 [==============================] - 401s 80ms/step - loss: 0.0141 - val_loss: 0.0155
-# Epoch 11/20
-# 5000/5000 [==============================] - 400s 80ms/step - loss: 0.0130 - val_loss: 0.0142
-# Epoch 12/20
-# 5000/5000 [==============================] - 400s 80ms/step - loss: 0.0122 - val_loss: 0.0122
-# Epoch 13/20
-# 5000/5000 [==============================] - 402s 80ms/step - loss: 0.0114 - val_loss: 0.0107
-# Epoch 14/20
-# 5000/5000 [==============================] - 399s 80ms/step - loss: 0.0108 - val_loss: 0.0103
-# Epoch 15/20
-# 5000/5000 [==============================] - 396s 79ms/step - loss: 0.0102 - val_loss: 0.0120
-# Epoch 16/20
-# 5000/5000 [==============================] - 395s 79ms/step - loss: 0.0097 - val_loss: 0.0096
-# Epoch 17/20
-# 5000/5000 [==============================] - 396s 79ms/step - loss: 0.0090 - val_loss: 0.0107
-# Epoch 18/20
-# 5000/5000 [==============================] - 396s 79ms/step - loss: 0.0088 - val_loss: 0.0086
-# Epoch 19/20
-# 5000/5000 [==============================] - 396s 79ms/step - loss: 0.0083 - val_loss: 0.0092
-# Epoch 20/20
-# 5000/5000 [==============================] - 395s 79ms/step - loss: 0.0082 - val_loss: 0.0083
+# 5000/5000 [===] - 439s 86ms/step - loss: 0.1872 - val_loss: 0.0804
+# Epoch 2/20 5000/5000 [===] - 425s 85ms/step - loss: 0.0596 - val_loss: 0.0442
+# Epoch 3/20 5000/5000 [===] - 408s 82ms/step - loss: 0.0397 - val_loss: 0.0313
+# Epoch 4/20 5000/5000 [===] - 407s 81ms/step - loss: 0.0305 - val_loss: 0.0263
+# Epoch 5/20 5000/5000 [===] - 406s 81ms/step - loss: 0.0246 - val_loss: 0.0207
+# Epoch 6/20 5000/5000 [===] - 404s 81ms/step - loss: 0.0207 - val_loss: 0.0194
+# Epoch 7/20 5000/5000 [===] - 403s 81ms/step - loss: 0.0182 - val_loss: 0.0170
+# Epoch 8/20 5000/5000 [===] - 401s 80ms/step - loss: 0.0165 - val_loss: 0.0156
+# Epoch 9/20 5000/5000 [===] - 401s 80ms/step - loss: 0.0150 - val_loss: 0.0145
+# Epoch 10/20 5000/5000 [===] - 401s 80ms/step - loss: 0.0141 - val_loss: 0.0155
+# Epoch 11/20 5000/5000 [===] - 400s 80ms/step - loss: 0.0130 - val_loss: 0.0142
+# Epoch 12/20 5000/5000 [===] - 400s 80ms/step - loss: 0.0122 - val_loss: 0.0122
+# Epoch 13/20 5000/5000 [===] - 402s 80ms/step - loss: 0.0114 - val_loss: 0.0107
+# Epoch 14/20 5000/5000 [===] - 399s 80ms/step - loss: 0.0108 - val_loss: 0.0103
+# Epoch 15/20 5000/5000 [===] - 396s 79ms/step - loss: 0.0102 - val_loss: 0.0120
+# Epoch 16/20 5000/5000 [===] - 395s 79ms/step - loss: 0.0097 - val_loss: 0.0096
+# Epoch 17/20 5000/5000 [===] - 396s 79ms/step - loss: 0.0090 - val_loss: 0.0107
+# Epoch 18/20 5000/5000 [===] - 396s 79ms/step - loss: 0.0088 - val_loss: 0.0086
+# Epoch 19/20 5000/5000 [===] - 396s 79ms/step - loss: 0.0083 - val_loss: 0.0092
+# Epoch 20/20 5000/5000 [===] - 395s 79ms/step - loss: 0.0082 - val_loss: 0.0083
 # 保存模型
 # 结束

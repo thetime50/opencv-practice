@@ -11,8 +11,8 @@ DEBUG = False
 # 基础颜色定义
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-GRAY = (200, 200, 200)
-LIGHT_GRAY = (230, 230, 230)
+GRAY = (210, 210, 210)
+LIGHT_GRAY = (80, 80, 80)
 DARK_GRAY = (150, 150, 150)
 
 def generate_9x9_grid_background(border_type: str = "single", bg_type: str = "white") -> np.ndarray:
@@ -30,23 +30,24 @@ def generate_9x9_grid_background(border_type: str = "single", bg_type: str = "wh
     elif bg_type == "3x3_alternate":
         for i in range(3):
             for j in range(3):
-                color = (230, 230, 230) if (i + j) % 2 == 0 else (255, 255, 255)
+                color = GRAY if (i + j) % 2 == 0 else (255, 255, 255)
                 cv2.rectangle(img, (j*168, i*168), ((j+1)*168, (i+1)*168), color, -1)
     elif bg_type == "row_alternate":
         for i in range(9):
-            color = (230, 230, 230) if i % 2 == 0 else (255, 255, 255)
+            color = GRAY if i % 2 == 0 else (255, 255, 255)
             cv2.rectangle(img, (0, i*56), (504, (i+1)*56), color, -1)
     elif bg_type == "col_alternate":
         for j in range(9):
-            color = (230, 230, 230) if j % 2 == 0 else (255, 255, 255)
+            color = GRAY if j % 2 == 0 else (255, 255, 255)
             cv2.rectangle(img, (j*56, 0), ((j+1)*56, 504), color, -1)
     
     # 绘制网格线
     if border_type == "none":
         if bg_type == "white":
             # 画9x9个 边长为56-random(2,32)填充的圆角矩形
-            gep = random.randint(1, 16)
-            fill = -1 if random.random() > 0.5 else 1
+            gep = random.randint(2, 5)
+            # fill = -1 if random.random() > 0.5 else 1
+            fill = -1
             for i in range(9):
                 for j in range(9):
                     cv2.rectangle(img, (j*56+gep, i*56+gep), ((j+1)*56-gep, (i+1)*56-gep), (200, 200, 200), fill)
@@ -55,11 +56,11 @@ def generate_9x9_grid_background(border_type: str = "single", bg_type: str = "wh
             # 绘制9×9细网格双线
             for i in range(1, 9):
                 # 垂直线双线
-                cv2.line(img, (i*56-1, 0), (i*56-1, 504), (150, 150, 150), 1)  # 左线
-                cv2.line(img, (i*56+1, 0), (i*56+1, 504), (150, 150, 150), 1)  # 右线
+                cv2.line(img, (i*56-1, 0), (i*56-1, 504), LIGHT_GRAY, 1)  # 左线
+                cv2.line(img, (i*56+1, 0), (i*56+1, 504), LIGHT_GRAY, 1)  # 右线
                 # 水平线双线
-                cv2.line(img, (0, i*56-1), (504, i*56-1), (150, 150, 150), 1)  # 上线
-                cv2.line(img, (0, i*56+1), (504, i*56+1), (150, 150, 150), 1)  # 下线
+                cv2.line(img, (0, i*56-1), (504, i*56-1), LIGHT_GRAY, 1)  # 上线
+                cv2.line(img, (0, i*56+1), (504, i*56+1), LIGHT_GRAY, 1)  # 下线
             
             # 绘制3×3粗网格双线
             for i in range(1, 3):
@@ -79,8 +80,8 @@ def generate_9x9_grid_background(border_type: str = "single", bg_type: str = "wh
         else:  # single
             # 单线模式
             for i in range(1, 9):
-                cv2.line(img, (i*56, 0), (i*56, 504), (200, 200, 200), 1)
-                cv2.line(img, (0, i*56), (504, i*56), (200, 200, 200), 1)
+                cv2.line(img, (i*56, 0), (i*56, 504), LIGHT_GRAY, 1)
+                cv2.line(img, (0, i*56), (504, i*56), LIGHT_GRAY, 1)
             
             for i in range(1, 3):
                 cv2.line(img, (i*168, 0), (i*168, 504), (0, 0, 0), 2)
@@ -105,15 +106,16 @@ def generate_3x3_grid_background(border_type: str = "single", bg_type: str = "wh
     elif bg_type == "3x3_alternate":
         for i in range(3):
             for j in range(3):
-                color = (230, 230, 230) if (i + j) % 2 == 0 else (255, 255, 255)
+                color = GRAY if (i + j) % 2 == 0 else (255, 255, 255)
                 cv2.rectangle(img, (j*168, i*168), ((j+1)*168, (i+1)*168), color, -1)
     
     # 绘制网格线
     if border_type == "none":
         if bg_type == "white":
             # 画9x9个 边长为56-random(2,32)填充的圆角矩形
-            gep = random.randint(1, 16)
-            fill = -1 if random.random() > 0.5 else 1
+            gep = random.randint(2, 5)
+            # fill = -1 if random.random() > 0.5 else 1
+            fill = -1
             for i in range(9):
                 for j in range(9):
                     cv2.rectangle(img, (j*56+gep, i*56+gep), ((j+1)*56-gep, (i+1)*56-gep), (200, 200, 200), fill)
@@ -227,8 +229,8 @@ def generate_random_sudoku_background() -> np.ndarray:
     background_types = [
         ("9x9", "white", random.choice(["none", "single", "double"])),
         ("9x9", "3x3_alternate", random.choice(["none", "single", "double"])),
-        ("9x9", "row_alternate", random.choice(["none", "single", "double"])),
-        ("9x9", "col_alternate", random.choice(["none", "single", "double"])),
+        # ("9x9", "row_alternate", random.choice(["none", "single", "double"])),
+        # ("9x9", "col_alternate", random.choice(["none", "single", "double"])),
         ("3x3", "white", random.choice(["none", "single", "double"])),
         ("3x3", "3x3_alternate", random.choice(["none", "single", "double"])),
         ("random_highlight", "white", "single"),

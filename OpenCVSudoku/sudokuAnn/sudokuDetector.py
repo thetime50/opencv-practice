@@ -4,11 +4,15 @@ from tensorflow.keras import layers
 import numpy as np
 import cv2
 import os
+import re
 
 
 SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
 SATASET_FILE_IMG = os.path.join(SATASET_FILE, 'img')
 MODEL_FILE = os.path.join(SATASET_FILE, 'sudoku.h5')
+SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'sudoku_dataset.npy')
+
+npy_set = None
 
 def masked_keypoints_loss(y_true, y_pred):
     """
@@ -27,7 +31,9 @@ def masked_keypoints_loss(y_true, y_pred):
     masked_loss = mse_loss * mask
     
     return tf.reduce_mean(masked_loss)
-
+def to_num(s):
+    try: return int(s)
+    except: return None
 class SudokuDetector:
     """数独检测器类"""
     
@@ -126,6 +132,38 @@ class SudokuDetector:
             image = cv2.imread(path)
             result = self.detect(image)
             img_display = self.visualize_result(image,result)
+            
+            n=to_num( re.split(r'[\\/.]',path)[-2])
+            if n is not None:
+                global npy_set
+                if npy_set is None:
+                    npy_set = np.load(SATASET_FILE_NPY, allow_pickle=True)
+                train_set, test_set = npy_set
+                if n < len(train_set[0]):
+                    i=n
+                    images_set, has_set, points_set = train_set
+                elif n < len(train_set[0]) + len(test_set[0]):
+                    i = n-len(train_set[0])
+                    images_set, has_set, points_set = test_set
+                else:
+                    pass
+                # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                img = detector.visualize_result(image,{
+                    'has_sudoku': has_set[i],
+                    'confidence': 1 if has_set[i] else 0,
+                    'keypoints': points_set[i].astype(np.int16),
+                    'keypoints_normalized':None,
+                })
+                if(has_set[i]):
+                    kps1 = result['keypoints']/image.shape[0]
+                    kps2 = points_set[i]/image.shape[0]
+                    var_val = np.var(np.concatenate([kps1.ravel(), kps2.ravel()]))
+                    print(f"{n} 方差为：{var_val}")
+                else:
+                    print(f'{n} 没有目标')
+                cv2.namedWindow('set_display', cv2.WINDOW_AUTOSIZE)
+                cv2.imshow("set_display",img)
+
             cv2.namedWindow('img_display', cv2.WINDOW_AUTOSIZE)
             cv2.imshow("img_display",img_display)
             cv2.waitKey(0)
@@ -143,3 +181,20 @@ path_list = [
 if __name__ == '__main__':
     detector = SudokuDetector(MODEL_FILE)
     detector.detect_test_batch(path_list)
+
+    # train_set, test_set = np.load(SATASET_FILE_NPY, allow_pickle=True)
+    # train_images, train_has, train_points = train_set
+    # for i in range(0,100):
+    #     img = cv2.imread(os.path.join(SATASET_FILE_IMG, train_images[i]) )
+    #     # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #     img = detector.visualize_result(img,{
+    #         'has_sudoku': train_has[i],
+    #         'confidence': 1 if train_has[i] else 0,
+    #         'keypoints': train_points[i].astype(np.int16),
+    #         'keypoints_normalized':None,
+    #     })
+    #     cv2.namedWindow('img_display', cv2.WINDOW_AUTOSIZE)
+    #     cv2.imshow("img_display",img)
+    #     cv2.waitKey(0)
+    
+

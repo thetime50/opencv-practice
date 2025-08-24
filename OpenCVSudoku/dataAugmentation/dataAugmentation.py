@@ -106,18 +106,28 @@ def random_augmentation2(img):
     随机增强图像，返回增强后的图像。
     - img: np.ndarray，BGR 或灰度
     """
-
+    def random_noise(x):
+        noic_img = np.zeros(shape= x.shape[:2], dtype=np.uint8)
+        noic_img = add_gaussian_noise(noic_img, 0, 60) if random.random()>0.5 else perlin_noise_image(noic_img,80,scale = random.randint(50,150))
+        noic_mix_img = np.clip(x[:,:,0].astype(np.int16) - noic_img, 0, 255).astype(noic_img.dtype)
+        x[:,:,:3] = np.stack([noic_mix_img]*3, axis=-1)
+        return x
+    def random_curves(x):
+        t = draw_random_curves( np.full(shape= x.shape[:2],fill_value= 0, dtype=np.uint8), num_curves=random.randint(1, 6))
+        x[:,:,:3] = np.stack([np.minimum(255-t,x[:,:,0])]*3, axis=-1)
+        return x
     # 随机选择增强方式
     augmentations = [
-        lambda x: add_gaussian_noise(x, 0, 40) if random.random()>0.5 else perlin_noise_image(x,60,scale = random.randint(50,150)),
-        lambda x: draw_random_curves(x, num_curves=random.randint(1, 3)),
-        lambda x: draw_random_curves(x, num_curves=random.randint(1, 6)),
-        # lambda x: draw_random_border_lines(x, n=3, num_lines=random.randint(1, 3))
+        lambda x: random_noise(x),
+        lambda x: random_curves(x),
+        # lambda x: draw_random_border_lines(x, n=3, num_lines=random.randint(1, 3)),
+        None,
+        None,
     ]
 
     # 从augmentations中抽卡两个
     for i in random.sample(augmentations, 2):
-        if random.random()>0.5:
+        if i is not None:
             img = i(img)
     
     return img

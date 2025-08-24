@@ -118,6 +118,34 @@ def add_border(image, lrtb, color=(255, 255, 255,255)):
     
     return bordered
 
+def graduatedBorder(image,border=10,range_=[0,255]):
+    j, k = range_  # 起始和结束值
+    # 2px透明避免透明度通道混合产生边界线
+    image[:, 0, 3] = range_[0]
+    image[:, -1, 3] = range_[0]
+    image[0, :, 3] = range_[0]
+    image[-1, :, 3] = range_[0]
+    for i in range(1,border):
+        val = j + (k - j) * i / (border - 1)
+        image[i, i:-i,3] = val       # 上边
+        image[-i-1, i:-i,3] = val    # 下边
+        image[i:-i, i,3] = val       # 左边
+        image[i:-i, -i-1,3] = val    # 右边
+    return image
+
+def mean_bg(bg,temp_bg,points):
+    '''设置背景色到平均值'''
+    xmin = int(min(points[:,0]))
+    xmax = int(max(points[:,0]))
+    ymin = int(min(points[:,1]))
+    ymax = int(max(points[:,1]))
+    mean_rgb = np.mean(bg[xmin:xmax, ymin:ymax])/255 #, axis=(0, 1))
+    if(mean_rgb>0.5):
+        temp_bg[:,:,:3]=temp_bg[:,:,:3]*mean_rgb
+    else:
+        temp_bg[:,:,:3]=255 -temp_bg[:,:,:3]*(1-mean_rgb)
+    return temp_bg
+
 def overlay_rgba_on_rgb(rgb_bg, rgba_img):
     """
     将RGBA图片叠加到RGB背景上
@@ -322,12 +350,13 @@ from tqdm import tqdm
 2 噪声调整
 '''
 NO_SUDOKU_RATE = 0.12
-INVERSE_RATE = 0.08
 
 # 60000 10000
 # 80000 20000
-trainDataCount = 80000
-testDataCount = 20000
+# trainDataCount = 80000
+# testDataCount = 20000
+trainDataCount = 8000
+testDataCount = 2000
 res_trainData = []
 res_trainHas = []
 res_trainPoints = []
@@ -358,28 +387,24 @@ for i in tqdm(range(trainDataCount + testDataCount), desc="处理进度"):
         key_points += np.array([lrtb[0], lrtb[2]])
         sudoku_bg = add_border(sudoku_bg, lrtb)
         # sudoku_bg四条边设为透明
-        sudoku_bg[:, 0, 3] = 0
-        sudoku_bg[:, -1, 3] = 0
-        sudoku_bg[0, :, 3] = 0
-        sudoku_bg[-1, :, 3] = 0
-        sudoku_bg[:,:, 3] = 200 #random.randint(160, 255)
+        graduated = random.randint(190, 255)
+        sudoku_bg[:,:, 3] = graduated
+        sudoku_bg = graduatedBorder(sudoku_bg,15,[0,graduated])
         # 背景添加随机噪声
         # noic_img = 255 - random_augmentation2(np.zeros(shape= sudoku_bg.shape[:2], dtype=np.uint8))
         # noic_img = np.stack([noic_img]*3, axis=-1)
         # sudoku_bg = np.minimum(sudoku_bg,noic_img)
-        noic_img = random_augmentation2(np.zeros(shape= sudoku_bg.shape[:2], dtype=np.uint8))
-        noic_mix_img = np.clip(sudoku_bg[:,:,0] - noic_img, 0, 255).astype(noic_img.dtype)
-        sudoku_bg[:,:,:3] = np.stack([noic_mix_img]*3, axis=-1)
+        sudoku_bg = random_augmentation2(sudoku_bg)
         random_draw_digits(sudoku_bg, sudoku_points, fill_rate=random.uniform(0.2, 0.5))
-        # 随机反色
-        if random.random()<INVERSE_RATE:
-            sudoku_bg[:,:,:3] = 255-sudoku_bg[:,:,:3]
         
         # 扭曲变换图片
         # 尺寸为bg的rgba图片填充(0,0,0,0)
         temp_bg = np.zeros((bg.shape[0], bg.shape[1], 4), dtype=np.uint8)
         seed = random.randint(0, 10000000)
         _,key_points = random_distortion_seed(sudoku_bg,temp_bg,key_points, seed=seed)
+
+        # 设置temp_bg背景色到平均值
+        temp_bg = mean_bg(bg,temp_bg,key_points)
 
         bg = overlay_rgba_on_rgb(bg,temp_bg)
 
