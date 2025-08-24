@@ -10,6 +10,9 @@ MODEL_TEMP_FILE = os.path.join(SATASET_FILE, 'sudoku_temp.h5')
 MODEL_TEMP1_FILE = os.path.join(SATASET_FILE, 'sudoku_temp_1.h5')
 MODEL_FILE = os.path.join(SATASET_FILE, 'sudoku.h5')
 
+IMG_SIZE = 384  # 缩放到统一大小以保证 batch 内一致
+BATCH_SIZE = 16
+
 # --------------------------
 # 自定义损失：条件关键点损失
 # --------------------------
@@ -76,8 +79,11 @@ class ConditionalKeypointLoss2(tf.keras.losses.Loss):
 # --------------------------
 # 模型定义
 # --------------------------
-def build_model():
-    inputs = layers.Input(shape=(None, None, 1))  # 任意尺寸输入
+def build_model(inputs = None):
+    return_model = False
+    if inputs is None:
+        return_model = True
+        inputs = layers.Input(shape=(None, None, 1))  # 任意尺寸输入
 
     # Backbone 卷积
     # x = layers.Conv2D(32, 3, activation="relu", padding="same")(inputs)
@@ -127,8 +133,12 @@ def build_model():
     # 拼接成一个整体输出 (方便自定义损失)
     outputs = layers.Concatenate(name="final_output")([has_sudoku, keypoints])
 
-    model = models.Model(inputs, outputs)
-    return model
+    if(return_model):
+        model = models.Model(inputs, outputs)
+        return model
+    else:
+        return outputs,has_sudoku,keypoints
+
 
 
 
@@ -170,6 +180,64 @@ def build_model_d():
     model = models.Model(inputs=inputs, outputs=outputs)
     return model
 
+def build_model_pre():
+    """使用预训练的MobileNetV2"""
+    # os.environ['http_proxy'] = 'http://127.0.0.1:10908'
+    # os.environ['https_proxy'] = 'http://127.0.0.1:10908'
+    # https://blog.csdn.net/weixin_44519481/article/details/110006997
+    base_model = tf.keras.applications.MobileNetV2(
+        input_shape=(IMG_SIZE, IMG_SIZE, 3),
+        include_top=False,
+        weights='imagenet'
+    )
+    base_model.trainable = False  # 冻结预训练层
+    
+    inputs = layers.Input(shape=(IMG_SIZE, IMG_SIZE, 1))
+    x = layers.Concatenate()([inputs, inputs, inputs])  # 灰度图复制为3通道
+    # x = layers.Conv2D(3, (1, 1), activation='relu')(inputs)  # 1通道转3通道
+    # x = base_model.output
+    x = base_model(x)
+
+    # 叠加旧结构
+    # 余弦退火
+    # dataset 100 Epoch 3/20 到达 0.90
+    # dataset 8000 Epoch 3/20 到达
+    # 指数衰减
+    # dataset 100 Epoch 20+n/20 到达 0.3337
+    # dataset 8000 Epoch 20/20 到达 0.48 连续训练达到 loss 0.43 val_loss: 0.5654
+    # outputs,has_sudoku,keypoints = build_model(x)
+    # model = models.Model(inputs, outputs)
+    # return model
+
+    # 重新实现 用更小的网络
+    # 余弦退火
+    # dataset 100 Epoch 3/20 到达 0.29
+    # dataset 8000 Epoch 3/20 到达 1.49
+    # 指数衰减
+    # dataset 100 Epoch /20 到达 
+    # dataset 8000 Epoch 40/40 到达 0.3213 连续训练达到 loss 0.3077 val_loss: 1.3392
+    x = layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+    global_features = layers.GlobalAveragePooling2D()(x)
+
+    # 是否有数独的分类头
+    classification = layers.Dense(128, activation='relu')(global_features)
+    classification = layers.Dropout(0.3)(classification)
+    classification = layers.Dense(64, activation='relu')(classification)
+    classification_output = layers.Dense(1, activation='sigmoid', name='has_sudoku')(classification)
+    
+    # 关键点回归头 (16个点 * 2坐标 = 32个值)
+    regression = layers.Dense(256, activation='relu')(global_features)
+    regression = layers.Dropout(0.3)(regression)
+    regression = layers.Dense(128, activation='relu')(regression)
+    regression = layers.Dense(64, activation='relu')(regression)
+    regression_output = layers.Dense(32, activation='sigmoid', name='keypoints')(regression)  # 归一化坐标
+    
+    # 拼接成一个整体输出 (方便自定义损失)
+    outputs = layers.Concatenate(name="final_output")([classification_output, regression_output])
+
+    model = models.Model(inputs, outputs)
+    return model
+
 # --------------------------
 # 示例训练数据
 # --------------------------
@@ -190,8 +258,6 @@ test_images, test_has, test_points = test_set
 print("Train:", len(train_images), "Test:", len(test_images))
 
 # # 数据处理函数
-IMG_SIZE = 384  # 缩放到统一大小以保证 batch 内一致
-BATCH_SIZE = 16
 def parse_fn(img_path, has_sudoku, points):
     # 读取图片 回调里会变为张量
     img = tf.io.read_file(tf.strings.join([SATASET_FILE_IMG, img_path], separator=os.sep))
@@ -224,19 +290,21 @@ test_ds = test_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 # --------------------------
 # 模型编译
 # --------------------------
-model = build_model()
+# model = build_model()
 # model = build_model_d()
+model = build_model_pre()
+
 # 固定学习率
 # optimizer=tf.keras.optimizers.Adam(1e-4)
-# 动态学习率
-# lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-#     initial_learning_rate=5e-3, decay_steps=1000, decay_rate=0.9)
-# optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-# 或者使用余弦退火
-lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
-    initial_learning_rate=1e-3, decay_steps=1000
-)
+# 动态学习率 指数衰减
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=1e-5, decay_steps=1000, decay_rate=0.82)
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+# 或者使用余弦退火
+# lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
+#     initial_learning_rate=1e-3, decay_steps=1000
+# )
+# optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
 model.compile(
     optimizer=optimizer,

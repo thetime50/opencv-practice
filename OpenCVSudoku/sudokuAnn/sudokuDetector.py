@@ -130,6 +130,9 @@ class SudokuDetector:
     def detect_test_batch(self,path_list):
         for i,path in enumerate( path_list):
             image = cv2.imread(path)
+            if image is None:
+                print(f'文件读取失败，请检查 {path}')
+                break
             result = self.detect(image)
             img_display = self.visualize_result(image,result)
             
@@ -168,8 +171,12 @@ class SudokuDetector:
             cv2.imshow("img_display",img_display)
             cv2.waitKey(0)
 
+img_range = range(100000-20,100000-10)
+# img_range = range(10000-20,10000-10)
+# img_range = range(0,20)
+
 path_list = [
-    os.path.join(SATASET_FILE_IMG, f"{i//1000:03d}_{i%1000:03d}.png") for i in range(100000-20,100000-10)
+    os.path.join(SATASET_FILE_IMG, f"{i//1000:03d}_{i%1000:03d}.png") for i in img_range
 ] + [
     os.path.join(os.path.dirname(__file__), "../sudoku_puzzle.jpg"),
     os.path.join(os.path.dirname(__file__), "../sudoku_puzzle1.jpg"),
@@ -179,6 +186,7 @@ path_list = [
 ]
 
 if __name__ == '__main__':
+    print(f'\n加载模型 {MODEL_FILE}')
     detector = SudokuDetector(MODEL_FILE)
     detector.detect_test_batch(path_list)
 
