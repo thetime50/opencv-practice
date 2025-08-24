@@ -165,23 +165,10 @@ def build_model_d():
     regression = layers.Dense(64, activation='relu')(regression)
     regression_output = layers.Dense(32, activation='sigmoid', name='keypoints')(regression)  # 归一化坐标
     
-    model = models.Model(inputs=inputs, outputs=[classification_output, regression_output])
+    # model = models.Model(inputs=inputs, outputs=[classification_output, regression_output])
+    outputs = layers.Concatenate(name="final_output")([classification_output, regression_output])
+    model = models.Model(inputs=inputs, outputs=outputs)
     return model
-
-
-# --------------------------
-# 模型编译
-# --------------------------
-# model = build_model()
-model = build_model_d()
-model.compile(
-    optimizer=optimizers.Adam(1e-4),
-    loss=ConditionalKeypointLoss2(),
-    metrics=["accuracy"]
-)
-
-model.summary()
-
 
 # --------------------------
 # 示例训练数据
@@ -193,6 +180,12 @@ train_set, test_set = np.load(SATASET_FILE_NPY, allow_pickle=True)
 
 train_images, train_has, train_points = train_set
 test_images, test_has, test_points = test_set
+
+# slice_repeat = lambda x,n : np.repeat(x[:n] , int(len(x)/n), axis=0)
+
+# train_images = slice_repeat(train_images,100)
+# train_has = slice_repeat(train_has,100)
+# train_points = slice_repeat(train_points,100)
 
 print("Train:", len(train_images), "Test:", len(test_images))
 
@@ -227,7 +220,12 @@ test_ds = tf.data.Dataset.from_tensor_slices((test_images, test_has, test_points
 test_ds = test_ds.map(parse_fn, num_parallel_calls=tf.data.AUTOTUNE)
 test_ds = test_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
-model = build_model()  # 上面回答里给的模型
+
+# --------------------------
+# 模型编译
+# --------------------------
+model = build_model()
+# model = build_model_d()
 # 固定学习率
 # optimizer=tf.keras.optimizers.Adam(1e-4)
 # 动态学习率
@@ -242,14 +240,16 @@ optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
 model.compile(
     optimizer=optimizer,
-    loss=ConditionalKeypointLoss()
+    loss=ConditionalKeypointLoss(),
+    metrics=["accuracy"]
 )
+# model.summary()
 
 
 # 加载模型和优化器状态
 if os.path.exists(MODEL_TEMP_FILE):
-    model.load_weights(MODEL_TEMP_FILE)
     print("加载上次中断的模型")
+    model.load_weights(MODEL_TEMP_FILE)
 
 # 训练
 print('开始训练')

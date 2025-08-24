@@ -154,7 +154,7 @@ class SudokuDetector:
                     'keypoints': points_set[i].astype(np.int16),
                     'keypoints_normalized':None,
                 })
-                if(has_set[i]):
+                if(has_set[i] and result['has_sudoku']):
                     kps1 = result['keypoints']/image.shape[0]
                     kps2 = points_set[i]/image.shape[0]
                     var_val = np.var(np.concatenate([kps1.ravel(), kps2.ravel()]))
