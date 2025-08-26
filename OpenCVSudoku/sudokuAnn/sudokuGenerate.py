@@ -353,10 +353,10 @@ NO_SUDOKU_RATE = 0.12
 
 # 60000 10000
 # 80000 20000
-# trainDataCount = 80000
-# testDataCount = 20000
-trainDataCount = 8000
-testDataCount = 2000
+trainDataCount = 80000
+testDataCount = 20000
+# trainDataCount = 8000
+# testDataCount = 2000
 res_trainData = []
 res_trainHas = []
 res_trainPoints = []

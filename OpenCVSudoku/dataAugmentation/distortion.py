@@ -320,8 +320,8 @@ def random_distortion_seed(img,dst,points=None,seed=None):
         res_points = nonlinear_distortion_coords(points, img.shape[:2], intensity=intensity)
     def random_wave():
         nonlocal res_img, res_points
-        amplitude = np.random.uniform(10, 30)
-        frequency = np.random.uniform(0.0001, 0.004)
+        amplitude = np.random.uniform(5, 15)
+        frequency = np.random.uniform(0.0001, 0.002)
         res_img = wave_distortion(img, amplitude=amplitude, frequency=frequency)
         res_points = wave_distortion_coords(points, img.shape[:2], amplitude=amplitude, frequency=frequency)
     def random_radial():

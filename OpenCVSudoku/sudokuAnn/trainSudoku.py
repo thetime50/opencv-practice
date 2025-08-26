@@ -1,7 +1,8 @@
 import os
 import tensorflow as tf
 from tensorflow.keras import layers, models, losses, optimizers,regularizers
-from build_model import IMG_SIZE,BATCH_SIZE, build_model,build_model_d,build_model_pre,build_model_pre1
+from build_model import IMG_SIZE,BATCH_SIZE, build_model,build_model_d,\
+    build_model_pre,build_model_pre1,build_model_pre2
 
 print('启动')
 SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
@@ -32,6 +33,7 @@ class ConditionalKeypointLoss(tf.keras.losses.Loss):
         # 关键点回归损失（只在 has_sudoku=1 时计算）
         mask = tf.expand_dims(has_sudoku_true, axis=-1)  # shape [batch,1]
         reg_loss = tf.reduce_mean(tf.square((keypoints_true - keypoints_pred) * mask), axis=-1)
+        reg_loss = tf.sqrt(reg_loss+ 1e-16)
 
         return cls_loss + reg_loss*1000
 
@@ -79,12 +81,13 @@ class ConditionalKeypointLoss2(tf.keras.losses.Loss):
 # 示例训练数据
 # --------------------------
 import numpy as np
+slice_dataset = lambda ds,lens:[_[:lens] for _ in ds]
 
 # 加载数据
 train_set, test_set = np.load(SATASET_FILE_NPY, allow_pickle=True)
 
 train_images, train_has, train_points = train_set
-test_images, test_has, test_points = test_set
+test_images, test_has, test_points = slice_dataset(test_set,5000)
 
 # slice_repeat = lambda x,n : np.repeat(x[:n] , int(len(x)/n), axis=0)
 
@@ -129,13 +132,15 @@ test_ds = test_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 # --------------------------
 # model = build_model()
 # model = build_model_d()
-model = build_model_pre1()
+# model = build_model_pre()
+# model = build_model_pre1()
+model = build_model_pre2()
 
 # 固定学习率
 # optimizer=tf.keras.optimizers.Adam(1e-4)
 # 动态学习率 指数衰减
 lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate=1e-5, decay_steps=1000, decay_rate=0.82)
+    initial_learning_rate=1e-3, decay_steps=1000, decay_rate=0.88)
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 # 或者使用余弦退火
 # lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
@@ -163,14 +168,15 @@ checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     save_weights_only=False, # True,
     save_best_only=True
 )
-model.fit(
-    train_ds,
-    validation_data=test_ds,
-    epochs=20,
-    callbacks=[checkpoint_callback]
-)
-print("保存模型")
-model.save(MODEL_FILE)
+for i in range(5):
+    model.fit(
+        train_ds,
+        validation_data=test_ds,
+        epochs=20,
+        callbacks=[checkpoint_callback]
+    )
+    print("保存模型")
+    model.save(MODEL_FILE)
 
 if os.path.exists(MODEL_TEMP1_FILE):
     os.remove(MODEL_TEMP1_FILE)

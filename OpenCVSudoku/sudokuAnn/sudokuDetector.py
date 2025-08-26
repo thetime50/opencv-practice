@@ -160,8 +160,8 @@ class SudokuDetector:
                 if(has_set[i] and result['has_sudoku']):
                     kps1 = result['keypoints']/image.shape[0]
                     kps2 = points_set[i]/image.shape[0]
-                    var_val = np.var(np.concatenate([kps1.ravel(), kps2.ravel()]))
-                    print(f"{n} 方差为：{var_val}")
+                    var_val = np.sqrt( np.var(np.concatenate([kps1.ravel(), kps2.ravel()])))
+                    print(f"{n} 标准差为：{var_val}")
                 else:
                     print(f'{n} 没有目标')
                 cv2.namedWindow('set_display', cv2.WINDOW_AUTOSIZE)
