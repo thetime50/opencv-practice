@@ -70,8 +70,10 @@ class DQNAgent:
         self.epsilon_min = 0.1
         self.lr = 0.001
         self.model = None
+        self.dataset = None
+        self.batch_size = 32
 
-    def build_model(self, input_shape = [None,None,1]):
+    def build_model(self, input_shape=[None, None, 1]):
         inputs = tf.keras.Input(shape=input_shape)
         x = tf.keras.layers.Conv2D(32, 3, activation='relu', padding='same')(inputs)
         x = tf.keras.layers.Conv2D(64, 3, activation='relu', padding='same')(x)
@@ -80,13 +82,51 @@ class DQNAgent:
         outputs = tf.keras.layers.Dense(self.action_size, activation='linear')(x)
         self.model = tf.keras.Model(inputs, outputs)
         self.model.compile(optimizer=tf.keras.optimizers.Adam(self.lr), loss='mse')
-    
+        # 初始化数据集
+        self._prepare_dataset()
+
+    def _prepare_dataset(self):
+        # 创建数据集生成器
+        def data_generator():
+            while True:
+                if not self.memory:
+                    yield np.zeros((1, 1, 1, 1)), np.zeros((1, self.action_size))
+                else:
+                    key = random.choice(list(self.memory.keys()))
+                    mem = self.memory[key]
+                    if len(mem) < self.batch_size:
+                        batch_size = len(mem)
+                    else:
+                        batch_size = self.batch_size
+                    batch = random.sample(mem, batch_size)
+                    states, targets = [], []
+                    for s, a, r, s2, done in batch:
+                        target = r
+                        if not done:
+                            q_next = self.model.predict(s2[np.newaxis, ...], verbose=0)[0]
+                            target += self.gamma * np.max(q_next)
+                        q_current = self.model.predict(s[np.newaxis, ...], verbose=0)[0]
+                        q_current[a] = target
+                        states.append(s)
+                        targets.append(q_current)
+                    yield np.array(states), np.array(targets)
+
+        # 创建 TensorFlow Dataset
+        self.dataset = tf.data.Dataset.from_generator(
+            data_generator,
+            output_signature=(
+                tf.TensorSpec(shape=(None, None, None, 1), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, self.action_size), dtype=tf.float32)
+            )
+        ).prefetch(tf.data.AUTOTUNE)
+
     def load_model(self):
         # 加载模型和优化器状态
         if os.path.exists(MODEL_TEMP_FILE):
             print("加载上次中断的模型")
             self.model.load_weights(MODEL_TEMP_FILE)
             self.load_memory()
+            self._prepare_dataset()  # 重新准备数据集
 
     def save_temp_model(self):
         self.save_memory()
@@ -98,7 +138,7 @@ class DQNAgent:
             os.remove(MODEL_FILE)
         if os.path.exists(MODEL_TEMP_FILE):
             os.rename(MODEL_TEMP_FILE, MODEL_FILE)
-            
+
     def save_memory(self):
         save_dict = {}
         for key, mem in self.memory.items():
@@ -111,7 +151,7 @@ class DQNAgent:
 
     def load_memory(self):
         if not os.path.exists(SATASET_FILE_NPY):
-            print("memory 文件没找到 {SATASET_FILE_NPY}")
+            print(f"memory 文件没找到 {SATASET_FILE_NPY}")
             return {}
         load_dict = np.load(SATASET_FILE_NPY, allow_pickle=True).item()
         print(f"Memory 文件已加载")
@@ -122,8 +162,8 @@ class DQNAgent:
         self.memory = list_dict
         self.print_memory_info()
         return list_dict
-    
-    def print_memory_info(self,simple= False):
+
+    def print_memory_info(self, simple=False):
         if simple:
             cnt = 0
             total = 0
@@ -145,32 +185,18 @@ class DQNAgent:
     def act(self, state, legal_moves):
         if np.random.rand() < self.epsilon:
             return random.choice(legal_moves)
-        q = self.model.predict(state[np.newaxis,...], verbose=0)[0]
+        q = self.model.predict(state[np.newaxis, ...], verbose=0)[0]
         q_masked = [q[a] for a in legal_moves]
         return legal_moves[np.argmax(q_masked)]
 
     def replay(self, batch_size=32):
-        if not self.memory: return
-
-        # 随机选择一个尺寸
-        key = random.choice(list(self.memory.keys()))
-        # if len(self.memory[key]) < batch_size: return
-        if len(self.memory[key]) < batch_size: 
-            batch_size = len(self.memory[key])
-        batch = random.sample(self.memory[key], batch_size)
-
-        states, targets = [], []
-        for s, a, r, s2, done in batch:
-            target = r
-            if not done:
-                q_next = self.model.predict(s2[np.newaxis,...], verbose=0)[0]
-                target += self.gamma * np.max(q_next)
-            q_current = self.model.predict(s[np.newaxis,...], verbose=0)[0]
-            q_current[a] = target
-            states.append(s)
-            targets.append(q_current)
-
-        self.model.fit(np.array(states), np.array(targets), epochs=1, verbose=0)
+        if not self.memory:
+            return
+        self.batch_size = batch_size
+        # 使用数据集进行训练
+        data_iter = iter(self.dataset)
+        states, targets = next(data_iter)
+        self.model.train_on_batch(states, targets)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
@@ -197,7 +223,11 @@ max_step_dic = {
     6:400,
 }
 
-for e in range(EPISODES):
+REPLAY_PERIOD = 30
+e = 0
+total_reward = 0
+# for e in range(EPISODES):
+while e < EPISODES * REPLAY_PERIOD:
     # 每个 episode 随机一个尺寸 m×n
     m = random.randint(*SIZE_RANGE)
     n = random.randint(*SIZE_RANGE)
@@ -210,7 +240,6 @@ for e in range(EPISODES):
         agent.load_model()
 
     max_step = math.floor(max_step_dic.get(max(m,n),400) *1.3)
-    total_reward = 0
     for t in range(max_step):
         legal = env.get_moves()
         action = agent.act(state, legal)
@@ -220,22 +249,27 @@ for e in range(EPISODES):
         total_reward += reward
         if done: break
 
-    for i in range(max_step):
-        agent.replay(batch_size=32)
-    reward_list.append(total_reward)
+        e+=1
+        if e and e % REPLAY_PERIOD ==0:
+            agent.replay(batch_size=32)
+            reward_list.append(total_reward)
 
-    # ===== 实时更新绘图 =====
-    line.set_data(range(len(reward_list)), reward_list)
-    ax.relim()
-    ax.autoscale_view()
-    # sleep(0.002)
-    plt.pause(0.05)
+            # ===== 实时更新绘图 =====
+            line.set_data(range(len(reward_list)), reward_list)
+            ax.relim()
+            ax.autoscale_view()
+            # sleep(0.002)
+            plt.pause(0.05)
 
-    if (e+1) % 5 == 0:
-        agent.save_temp_model()
-        print(f"Episode {e+1}/{EPISODES}, Total Reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+            if (e) % (5*REPLAY_PERIOD) == 0:
+                agent.save_temp_model()
+                print(f"Episode {e//REPLAY_PERIOD+1}/{EPISODES}, Total Reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+            total_reward = 0
+
+agent.save_model()
 
 # ===== 绘制奖励曲线 =====
+plt.ioff()
 plt.plot(reward_list)
 plt.xlabel("Episode")
 plt.ylabel("Total Reward")
