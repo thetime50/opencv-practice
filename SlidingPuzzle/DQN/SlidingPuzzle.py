@@ -1,11 +1,14 @@
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 import numpy as np
 import random
 import tensorflow as tf
 from collections import deque
 import matplotlib.pyplot as plt
 import math
-import os
-from time import sleep
 from const import SATASET_FILE_NPY,\
 MODEL_TEMP_FILE,\
 MODEL_FILE,\

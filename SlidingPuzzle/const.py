@@ -1,7 +1,9 @@
 import os
+import sys
 
 
-SATASET_FILE = os.path.join(os.path.dirname(__file__), 'output')
+# SATASET_FILE = os.path.join(os.path.dirname(__file__), 'output')
+SATASET_FILE = os.path.join(os.path.dirname(sys.argv[0]), 'output')
 SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'dataset.npy')
 MODEL_TEMP_FILE = os.path.join(SATASET_FILE, 'sliding_temp.h5')
 # MODEL_TEMP1_FILE = os.path.join(SATASET_FILE, 'sliding_temp_1.h5')
