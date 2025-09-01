@@ -212,8 +212,42 @@ class MCTSAgent:
         self.puzzle_net = PuzzleNet(m, n)
         self.env = MN_Puzzle(m, n)
 
+    # def mcts_search(self, root_state):
+    #     root = MCTSNode(root_state)
+        
+    #     for _ in range(self.num_simulations):
+    #         node = root
+    #         search_path = [node]
+            
+    #         # 选择阶段
+    #         while node.is_expanded and node.children:
+    #             node = node.select_child()
+    #             search_path.append(node)
+            
+    #         # 扩展阶段
+    #         if not node.is_expanded:
+    #             # 使用神经网络预测动作概率和状态价值
+    #             action_probs, value = self.puzzle_net.predict(node.state)
+    #             node.expand(action_probs)
+    #         else:
+    #             # 随机 rollout 或使用默认策略
+    #             value = self.rollout(node.state)
+            
+    #         # 回溯更新
+    #         self.backpropagate(search_path, value)
+        
+    #     # 选择访问次数最多的动作
+    #     action = max(root.children.keys(), key=lambda a: root.children[a].visit_count)
+    #     return action, root
+
     def mcts_search(self, root_state):
         root = MCTSNode(root_state)
+        
+        # 创建临时环境获取有效动作
+        temp_env = MN_Puzzle(self.m, self.n)
+        temp_env.state = root_state.copy()
+        temp_env.empty_pos = np.where(root_state == self.size - 1)[0][0]
+        valid_actions = temp_env.get_actions()
         
         for _ in range(self.num_simulations):
             node = root
@@ -236,10 +270,17 @@ class MCTSAgent:
             # 回溯更新
             self.backpropagate(search_path, value)
         
-        # 选择访问次数最多的动作
-        action = max(root.children.keys(), key=lambda a: root.children[a].visit_count)
+        # 只从有效动作中选择
+        valid_children = {a: root.children[a] for a in root.children.keys() if a in valid_actions}
+        
+        if valid_children:
+            action = max(valid_children.keys(), key=lambda a: valid_children[a].visit_count)
+        else:
+            # 备用方案：随机选择有效动作
+            action = random.choice(valid_actions) if valid_actions else 'up'
+        
         return action, root
-  
+
     def rollout(self, state):
         # 创建一个临时环境进行随机模拟
         temp_env = MN_Puzzle(self.m, self.n)
@@ -269,14 +310,20 @@ class MCTSAgent:
             node.total_value += value
             value = -value  # 交替视角
     
-    def self_play(self, num_games=1, scramble_steps=0):
+    def self_play(self, num_games=1, scramble_steps=0, max_moves = 150):
         training_data = []
         
+        invalid_action_cnt = 0
         for game in range(num_games):
             state = self.env.reset(scramble_steps)
             game_history = []
+
+            # 检查初始状态是否已解决
+            if self.env.is_solved():
+                print(f"游戏 {game+1} 初始状态已解决")
+                continue
             
-            max_moves = 200  # 防止无限循环
+            # 防止无限循环
             for move in range(max_moves):
                 action, root = self.mcts_search(state)
                 if action is None:  # 检查是否返回有效动作
@@ -296,13 +343,14 @@ class MCTSAgent:
                 # 执行动作
                 valid, next_state = self.env.execute_action(action)
                 if not valid:
-                    print(f"无效动作: {action}，重置环境")
+                    # print(f"无效动作: {action}，重置环境")
+                    invalid_action_cnt +=1
                     break
                 
                 state = next_state
                 
                 if self.env.is_solved():
-                    print(f"游戏 {game+1} 在 {move+1} 步内解决")
+                    print(f"游戏 {game+1} 在 {move+1} 步内解决"+ (f',无效动作{invalid_action_cnt}' if invalid_action_cnt else ''))
                     # 为每一步分配最终结果作为价值目标
                     for i, (s, p) in enumerate(game_history):
                         # 越接近解决，价值越高
@@ -310,7 +358,7 @@ class MCTSAgent:
                         training_data.append((s, p, value_target))
                     break
             else:
-                print(f"游戏 {game+1} 未能在 {max_moves} 步内解决")
+                print(f"游戏 {game+1} 未能在 {max_moves} 步内解决"+ (f',无效动作{invalid_action_cnt}' if invalid_action_cnt else ''))
                 # 为每一步分配负价值
                 for s, p in game_history:
                     training_data.append((s, p, -1.0))
@@ -344,13 +392,15 @@ class MCTSAgent:
         max_scramble_steps = 45  # 最大打乱步数
         step_increment = max(1, max_scramble_steps // (num_iterations/4))
         
-        for iteration in range(num_iterations):
+        # for iteration in range(num_iterations):
+        iteration = 0
+        while iteration < num_iterations:
             # 计算当前打乱步数
-            scramble_steps = max(2,min(iteration * step_increment, max_scramble_steps))
+            scramble_steps = max(1,min(iteration * step_increment, max_scramble_steps))
             print(f"迭代 {iteration+1}/{num_iterations}, 打乱步数: {scramble_steps}")
             
             # 自我对弈生成数据
-            training_data = self.self_play(num_self_play_games, scramble_steps)
+            training_data = self.self_play(num_self_play_games, scramble_steps,min(150,scramble_steps*5))
             replay_buffer.extend(training_data)
             
             if len(replay_buffer) < batch_size:
@@ -369,6 +419,9 @@ class MCTSAgent:
             # 每5次迭代测试一次性能
             if (iteration + 1) % 5 == 0:
                 success_rate = self.test_performance(5, scramble_steps)  # 测试5局
+                if(success_rate>50):
+                    iteration +=1
+                    print(f'成功率提高 next iteration {iteration}')
                 success_rates.append(success_rate)
                 
                 # 更新实时图表
