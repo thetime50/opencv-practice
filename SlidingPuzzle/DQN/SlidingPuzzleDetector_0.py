@@ -1,109 +1,9 @@
 import numpy as np
 import random
 import tensorflow as tf
-from SlidingPuzzle_0 import SlidingPuzzleEnv, MODEL_FILE
+from SlidingPuzzle_0 import SlidingPuzzleEnv, MODEL_FILE,SlidingPuzzleDetector
 import msvcrt
 
-class SlidingPuzzleDetector:
-    def __init__(self, m=3, n=3):
-        self.env = SlidingPuzzleEnv(m, n)
-        self.model = tf.keras.models.load_model(MODEL_FILE)
-        self.action_names = ['上', '下', '左', '右']
-
-    def state2str(self,state):
-        return ','.join([str(i) for i in state])
-    
-    def solve(self, initial_state, max_steps=50):
-        """
-        解决数码难题
-        :param initial_state: 初始状态数组
-        :param max_steps: 最大尝试步数
-        :return: (success, path) - 成功标志和解决路径
-        """
-        # 设置环境状态
-        self.env.state = initial_state.copy()
-        path = []
-        visited_states = set()
-        visited_states.add(self.state2str(self.env.state))  # 添加初始状态
-        
-        # 定义相反动作映射
-        opposite_actions = {0: 1, 1: 0, 2: 3, 3: 2}  # 上↔下, 左↔右
-        
-        for step in range(max_steps):
-            # 检查是否已经解决
-            if self.env.state == list(range(self.env.size)):
-                return True, path
-            
-            # 获取当前状态观察值
-            state_obs = self.env._get_obs()
-            legal_moves = self.env.get_moves()
-            
-            # 使用模型预测所有动作的Q值
-            q_values = self.model.predict(state_obs[np.newaxis, ...], verbose=0)[0]
-            
-            # 按Q值从高到低排序所有动作
-            all_actions = list(range(4))
-            sorted_actions = sorted(all_actions, key=lambda a: q_values[a], reverse=True)
-            
-            # 过滤掉上一次动作的相反动作（如果存在上一次动作）
-            if path:
-                last_action = path[-1]
-                opposite_action = opposite_actions.get(last_action)
-                # 从合法动作中移除相反动作
-                if opposite_action in legal_moves:
-                    legal_moves.remove(opposite_action)
-            
-            # 选择不会导致循环状态的最高Q值合法动作
-            chosen_action = None
-            next_state_tuple = None
-            
-            for action in sorted_actions:
-                if action not in legal_moves:
-                    continue
-                    
-                # 模拟执行动作来检查下一个状态
-                temp_env = SlidingPuzzleEnv(self.env.m, self.env.n)
-                temp_env.state = self.env.state.copy()
-                next_state, reward, done = temp_env.step(action)
-                next_state_tuple = temp_env.state
-                
-                # 检查下一个状态是否已经访问过
-                if self.state2str(next_state_tuple) not in visited_states:
-                    chosen_action = action
-                    break
-            
-            if chosen_action is None:
-                # 所有可能的动作都会导致循环状态
-                return False, path
-            
-            # 执行选择的动作
-            next_state, reward, done = self.env.step(chosen_action)
-            next_state_tuple = tuple(self.env.state)
-            visited_states.add(self.state2str(next_state_tuple))
-            path.append(chosen_action)
-            
-            if done:
-                return True, path
-        
-        return False, path
-    
-    def get_state_string(self, state):
-        """将状态数组转换为可读字符串"""
-        grid = np.array(state).reshape(self.env.m, self.env.n)
-        return '\n'.join([' '.join('  ' if x == self.env.empty_tile else f'{x:2d}' for x in row) for row in grid])
-    
-    def apply_action_sequence(self, state, actions):
-        """应用动作序列到状态"""
-        current_state = state.copy()
-        env_copy = SlidingPuzzleEnv(self.env.m, self.env.n)
-        env_copy.state = current_state
-        
-        for action in actions:
-            if action not in env_copy.get_moves():
-                return None
-            env_copy.step(action)
-        
-        return env_copy.state
 
 # 测试代码
 if __name__ == "__main__":
@@ -173,14 +73,14 @@ if __name__ == "__main__":
                     print("退出动画!")
                     break
             
-            # 最后显示完成状态
-            if done:
-                clear_previous_lines()
-                print(f"\n步骤 {len(solution_path)}/{len(solution_path)}: 完成!")
-                print("最终状态:")
-                print(detector.get_state_string(env_demo.state))
-                print("拼图完成!")                
-                input("按回车继续下一步...")
+            # # 最后显示完成状态
+            # if done:
+            #     clear_previous_lines()
+            #     print(f"\n步骤 {len(solution_path)}/{len(solution_path)}: 完成!")
+            #     print("最终状态:")
+            #     print(detector.get_state_string(env_demo.state))
+            #     print("拼图完成!")                
+            #     input("按回车继续下一步...")
         else:
             # 验证解决方案
             final_state = detector.apply_action_sequence(scrambled_state, solution_path)

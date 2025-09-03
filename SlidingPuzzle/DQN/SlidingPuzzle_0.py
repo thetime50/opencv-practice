@@ -22,23 +22,33 @@ class SlidingPuzzleEnv:
         self.empty_tile = self.size - 1
         self.reset()
 
-    def reset(self):
+    def reset(self,scramble_steps=0):
         self.state = list(range(self.size))
-        random.shuffle(self.state)
+        action = None
+        for _ in range(scramble_steps):
+            actions = self.get_moves( [self.negative_action(action)] if action else [])
+            action = random.choice(actions)
+            self.do_action(action)
         return self._get_obs()
 
     def _get_obs(self):
-        mat = np.array(self.state).reshape((self.m, self.n)) / (self.size - 1)
-        return mat[..., np.newaxis].astype(np.float32)  # shape: (m,n,1)
+        # mat = np.array(self.state).reshape((self.m, self.n)) / (self.size - 1)
+        # return mat[..., np.newaxis].astype(np.float32)  # shape: (m,n,1)
+        one_hot = np.eye(self.size)[np.array(self.state,dtype=np.uint8)]
+        return one_hot.reshape( self.m, self.n, self.size)
 
-    def get_moves(self):
+    def get_moves(self,excludes = None):
         idx = self.state.index(self.empty_tile)
         row, col = divmod(idx, self.n)
         moves = []
-        if row > 0: moves.append(0)  # 上
-        if row < self.m - 1: moves.append(1)  # 下
-        if col > 0: moves.append(2)  # 左
-        if col < self.n - 1: moves.append(3)  # 右
+        if row > 0 and (excludes is None or 0 not in excludes):
+            moves.append(0)  # 上
+        if row < self.m - 1 and (excludes is None or 1 not in excludes):
+            moves.append(1)  # 下
+        if col > 0 and (excludes is None or 2 not in excludes):
+            moves.append(2)  # 左
+        if col < self.n - 1 and (excludes is None or 3 not in excludes):
+            moves.append(3)  # 右
         return moves
 
     def _calculate_total_distance(self,state):
@@ -53,6 +63,23 @@ class SlidingPuzzleEnv:
             distance = abs(current_row - correct_row) + abs(current_col - correct_col)
             total_distance += distance
         return total_distance
+    def negative_action(self,action):
+        m = {
+            0:1,
+            1:0,
+            2:3,
+            3:2,
+        }
+        return m.get(action)
+
+    def do_action(self,action):
+        idx = self.state.index(self.empty_tile)
+        if action == 0: target = idx - self.n
+        elif action == 1: target = idx + self.n
+        elif action == 2: target = idx - 1
+        elif action == 3: target = idx + 1
+
+        self.state[idx], self.state[target] = self.state[target], self.state[idx]
 
     def step(self, action):
         legal_moves = self.get_moves()
@@ -62,45 +89,44 @@ class SlidingPuzzleEnv:
             # reward = -0.1
             reward = - math.square(self.m+self.n)
         else:
-            idx = self.state.index(self.empty_tile)
-            if action == 0: target = idx - self.n
-            elif action == 1: target = idx + self.n
-            elif action == 2: target = idx - 1
-            elif action == 3: target = idx + 1
             before_total_distance = self._calculate_total_distance(self.state)
-
-            self.state[idx], self.state[target] = self.state[target], self.state[idx]
+            self.do_action(action)
 
             # 计算所有滑块到正确位置的曼哈顿距离之和
             total_distance = self._calculate_total_distance(self.state)
             # 使用距离之和作为额外奖励（负奖励，因为距离越小越好）
-            distance_reward = -0.01 * total_distance  # 缩放因子可根据需要调整
-            # if(before_total_distance>total_distance):
-            #     distance_reward = 0.06 # * before_total_distance-total_distance
-            # else:
-            #     distance_reward = -0.03 # * before_total_distance-total_distance
-            reward = distance_reward
+            if(before_total_distance>total_distance):
+                reward = 0.06 # * before_total_distance-total_distance
+            else:
+                reward = -0.03 # * before_total_distance-total_distance
+            # distance_reward = -0.01 * total_distance  # 缩放因子可根据需要调整
+            # reward = distance_reward
 
             if self.state == list(range(self.size)):
-                # reward = 1.0
-                reward = math.pow(self.m+self.n,4)
+                reward = 1.0
+                # reward = math.pow(self.m+self.n,4)
                 done = True
         return self._get_obs(), reward, done
 
 # ===== DQN Agent =====
 class DQNAgent:
-    def __init__(self, action_size):
+    def __init__(self, action_size,m,n):
         self.action_size = action_size
         self.memory = deque(maxlen=2000)
         self.gamma = 0.99
-        self.epsilon = 1.0
-        self.epsilon_decay = 0.995
+        # self.epsilon = 1.0
+        # self.epsilon_decay = 0.995
+        self.epsilon = 0.2
+        self.epsilon_decay = 1
         self.epsilon_min = 0.1
+        self.m = m
+        self.n = n
+        self.size = m*n
         
         # self.optimizer = tf.keras.optimizers.Adam(1e-3)
         # 动态学习率 指数衰减
         lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-            initial_learning_rate=1e-2, decay_steps=32, decay_rate=0.995)
+            initial_learning_rate=1e-3, decay_steps=32, decay_rate=0.995)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
         # 或者使用余弦退火
         # lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
@@ -110,11 +136,16 @@ class DQNAgent:
         self.model = self._build_model()
 
     def _build_model(self):
-        inputs = tf.keras.Input(shape=(None, None, 1))
-        x = tf.keras.layers.Conv2D(32, 3, activation='relu', padding='same')(inputs)
-        x = tf.keras.layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+        inputs = tf.keras.Input(shape=(self.m, self.n, self.size))
+
+        x = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(inputs)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.GlobalAveragePooling2D()(x)
-        x = tf.keras.layers.Dense(64, activation='relu')(x)
+        x = tf.keras.layers.Dense(128, activation='relu')(x)
         outputs = tf.keras.layers.Dense(self.action_size, activation='linear')(x)
         model = tf.keras.Model(inputs, outputs)
         model.compile(optimizer=self.optimizer, loss='mse')
@@ -147,11 +178,126 @@ class DQNAgent:
         if self.epsilon > self.epsilon_min: self.epsilon *= self.epsilon_decay
 
 
+class SlidingPuzzleDetector:
+    def __init__(self, m=3, n=3,model=None):
+        self.env = SlidingPuzzleEnv(m, n)
+        self.model = model if model else tf.keras.models.load_model(MODEL_FILE)
+        self.action_names = ['上', '下', '左', '右']
+
+    def state2str(self,state):
+        return ','.join([str(i) for i in state])
+    
+    def solve(self, initial_state, max_steps=50):
+        """
+        解决数码难题
+        :param initial_state: 初始状态数组
+        :param max_steps: 最大尝试步数
+        :return: (success, path) - 成功标志和解决路径
+        """
+        # 设置环境状态
+        self.env.state = initial_state.copy()
+        path = []
+        visited_states = set()
+        visited_states.add(self.state2str(self.env.state))  # 添加初始状态
+        
+        # 定义相反动作映射
+        opposite_actions = {0: 1, 1: 0, 2: 3, 3: 2}  # 上↔下, 左↔右
+        
+        for step in range(max_steps):
+            # 检查是否已经解决
+            if self.env.state == list(range(self.env.size)):
+                return True, path
+            
+            # 获取当前状态观察值
+            state_obs = self.env._get_obs()
+            legal_moves = self.env.get_moves()
+            
+            # 使用模型预测所有动作的Q值
+            q_values = self.model.predict(state_obs[np.newaxis, ...], verbose=0)[0]
+            
+            # 按Q值从高到低排序所有动作
+            all_actions = list(range(4))
+            sorted_actions = sorted(all_actions, key=lambda a: q_values[a], reverse=True)
+            
+            # 过滤掉上一次动作的相反动作（如果存在上一次动作）
+            if path:
+                last_action = path[-1]
+                opposite_action = opposite_actions.get(last_action)
+                # 从合法动作中移除相反动作
+                if opposite_action in legal_moves:
+                    legal_moves.remove(opposite_action)
+            
+            # 选择不会导致循环状态的最高Q值合法动作
+            chosen_action = None
+            next_state_tuple = None
+            
+            for action in sorted_actions:
+                if action not in legal_moves:
+                    continue
+                    
+                # 模拟执行动作来检查下一个状态
+                temp_env = SlidingPuzzleEnv(self.env.m, self.env.n)
+                temp_env.state = self.env.state.copy()
+                next_state, reward, done = temp_env.step(action)
+                next_state_tuple = temp_env.state
+                
+                # 检查下一个状态是否已经访问过
+                if self.state2str(next_state_tuple) not in visited_states:
+                    chosen_action = action
+                    break
+            
+            if chosen_action is None:
+                # 所有可能的动作都会导致循环状态
+                return False, path
+            
+            # 执行选择的动作
+            next_state, reward, done = self.env.step(chosen_action)
+            next_state_tuple = tuple(self.env.state)
+            visited_states.add(self.state2str(next_state_tuple))
+            path.append(chosen_action)
+            
+            if done:
+                return True, path
+        
+        return False, path
+    
+    def get_state_string(self, state):
+        """将状态数组转换为可读字符串"""
+        grid = np.array(state).reshape(self.env.m, self.env.n)
+        return '\n'.join([' '.join('  ' if x == self.env.empty_tile else f'{x:2d}' for x in row) for row in grid])
+    
+    def apply_action_sequence(self, state, actions):
+        """应用动作序列到状态"""
+        current_state = state.copy()
+        env_copy = SlidingPuzzleEnv(self.env.m, self.env.n)
+        env_copy.state = current_state
+        
+        for action in actions:
+            if action not in env_copy.get_moves():
+                return None
+            env_copy.step(action)
+        
+        return env_copy.state
+    
+    def test_performance(self,cnt,scrambled_step):
+        # 重置环境并随机打乱n步
+        env = SlidingPuzzleEnv(self.env.m,self.env.n)
+        success_cnt = 0
+        for test_idx in range(cnt):
+            env.reset(scrambled_step)
+            scrambled_state = env.state.copy()
+            
+            # 使用solve求解
+            success, solution_path = self.solve(scrambled_state, max_steps=scrambled_step*3)
+            if success: success_cnt+=1
+        return success_cnt/cnt
+
 if __name__ == '__main__':
 
     # ===== 训练 =====
     episodes = 500
     reward_list = []
+    puzzle_size = {'m':3,'n':3}
 
     # 初始化绘图
     plt.ion()
@@ -163,13 +309,26 @@ if __name__ == '__main__':
     ax.set_ylabel("Total Reward")
     ax.set_title("DQN Training Reward")
 
-    agent = DQNAgent(action_size=4)
+    agent = DQNAgent(action_size=4,**puzzle_size)
 
-    env = SlidingPuzzleEnv(3,3)
-    for e in range(episodes):
-        state = env.reset()
+    env = SlidingPuzzleEnv(**puzzle_size)
+    # def get_fn(x1,y1,x2,y2):
+    #     k = (y2-y1)/(x2-x1)
+    #     b = y1-k*x1
+    #     return lambda x:k*x+b
+    # kxb = get_fn(0,2,150,50)
+    # for e in range(episodes):
+    #     scramble_steps = min(math.floor( kxb(e)),50)
+
+    e = 0
+    total_cnt = 0
+    while e < episodes:
+        total_cnt += 1
+        scramble_steps = max(2,min(e,70))
+        state = env.reset(scramble_steps)
         total_reward = 0
-        for t in range(80):
+        action = None
+        for t in range(50):
             legal = env.get_moves()
             action = agent.act(state, legal)
             next_state, reward, done = env.step(action)
@@ -187,9 +346,13 @@ if __name__ == '__main__':
         ax.autoscale_view()
         plt.pause(0.05)
 
-        if (e+1) % 5 == 0:
+        if total_cnt % 5 == 0:
             agent.model.save(MODEL_FILE)
-            print(f"Episode {e+1}/{episodes}, Total Reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+            detector = SlidingPuzzleDetector(model = tf.keras.models.clone_model(agent.model), **puzzle_size)
+            success_rate = detector.test_performance(20,scramble_steps)
+            print(f"Episode {total_cnt} {e+1}/{episodes}, scramble: {scramble_steps}, success: {success_rate*100:.1f}%, Total Reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+            if(success_rate>=0.9):
+                e+=1
 
     agent.model.save(MODEL_FILE)
 
