@@ -19,10 +19,11 @@ class MN_Puzzle:
         # 初始状态
         self.state = np.arange(self.size)
         self.empty_pos = self.size - 1
-        
+
+        action = None
         # 随机打乱指定步数
         for _ in range(scramble_steps):
-            actions = self.get_actions()
+            actions = self.get_actions( [self.negative_action(action)] if action else [])
             if actions:
                 action = random.choice(actions)
                 self.execute_action(action)
@@ -45,17 +46,17 @@ class MN_Puzzle:
             empty_row = self.empty_pos // self.n
             return (inversions + empty_row) % 2 == 1
     
-    def get_actions(self):
+    def get_actions(self,excludes = []):
         actions = []
         empty_row, empty_col = self.empty_pos // self.n, self.empty_pos % self.n
         
-        if empty_row > 0:
+        if empty_row > 0 and 'up' not in excludes:
             actions.append('up')
-        if empty_row < self.m - 1:
+        if empty_row < self.m - 1 and 'down' not in excludes:
             actions.append('down')
-        if empty_col > 0:
+        if empty_col > 0 and 'left' not in excludes:
             actions.append('left')
-        if empty_col < self.n - 1:
+        if empty_col < self.n - 1 and 'right' not in excludes:
             actions.append('right')
             
         return actions
@@ -157,7 +158,7 @@ class PuzzleNet:
         x = layers.Reshape((self.m, self.n, self.size))(x)
         
         # 卷积层
-        x = layers.Conv2D(4096, (3, 3), activation='relu', padding='same')(x)
+        x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
         x = layers.BatchNormalization()(x)
         x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
         x = layers.BatchNormalization()(x)
@@ -193,7 +194,10 @@ class PuzzleNet:
         
         return action_dict, value
     
-    def train(self, states, target_policies, target_values):
+    def train(self, states, 
+        target_policies, # action概率
+        target_values # 全局评分
+        ):
         with tf.GradientTape() as tape:
             policy_logits, values = self.model(states, training=True)
             
@@ -654,9 +658,10 @@ class MCTSAgent_2 (MCTSAgent):
         # value_target = 1 - 0.5 * (value_target_1 + value_target_2)/2
         for i in range(cnt):
             temp_env.reset()
+            action = None
             for j in range(setp):
                 # 随机打乱
-                valid_actions  = temp_env.get_actions()
+                valid_actions  = temp_env.get_actions([temp_env.negative_action(action)] if action else [])
                 action = random.choice(valid_actions )
                 _, state = temp_env.execute_action(action)
                 
