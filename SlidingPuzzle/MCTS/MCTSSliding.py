@@ -59,6 +59,14 @@ class MN_Puzzle:
             actions.append('right')
             
         return actions
+    def negative_action(self,action):
+        m = {
+            'up':'down',
+            'down':'up',
+            'left':'right',
+            'right':'left',
+        }
+        return m.get(action)
     
     def execute_action(self, action):
         empty_row, empty_col = self.empty_pos // self.n, self.empty_pos % self.n
@@ -134,7 +142,11 @@ class PuzzleNet:
         self.n = n
         self.size = m * n
         self.model = self.build_model()
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        # self.optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=learning_rate, decay_steps=1000, decay_rate=0.9)
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+
     
     def build_model(self):
         # 输入是拼图状态 (m*n的一维向量)
@@ -145,7 +157,7 @@ class PuzzleNet:
         x = layers.Reshape((self.m, self.n, self.size))(x)
         
         # 卷积层
-        x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
+        x = layers.Conv2D(4096, (3, 3), activation='relu', padding='same')(x)
         x = layers.BatchNormalization()(x)
         x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
         x = layers.BatchNormalization()(x)
@@ -340,8 +352,11 @@ class MCTSAgent:
         
         return training_data
     
-    def train(self, num_iterations=100, num_self_play_games=10, batch_size=32):
+
+    def train(self, num_iterations=100, num_self_play_games=10, batch_size=32, 
+              pre_train_steps=500, loss_threshold=0.1):
         losses = []
+        success_rates = []
         replay_buffer = deque(maxlen=10000)
         
         # 创建实时图表
@@ -361,19 +376,22 @@ class MCTSAgent:
         ax2.set_ylim(0, 100)
         ax2.grid(True)
         
-        success_rates = []
+        if hasattr( self, 'pretrain'):
+            total_distance = self.pretrain(batch_size,pre_train_steps,loss_threshold)
+            replay_buffer.extend(total_distance)
         
-        # 逐步增加打乱步数
+        # 2. 主训练阶段：自我对弈学习
+        print("开始主训练阶段...")
         max_scramble_steps = 45  # 最大打乱步数
         step_increment = max(1, max_scramble_steps // (num_iterations/4))
-        
+
         # for iteration in range(num_iterations):
         iteration = 0
         iteration_cnt = 0
         while iteration < num_iterations:
             iteration_cnt += 1
             # 计算当前打乱步数
-            scramble_steps = max(1,min(iteration * step_increment, max_scramble_steps))
+            scramble_steps = max(3,min(iteration * step_increment, max_scramble_steps))
             print(f"迭代 {iteration+1}/{num_iterations}, 打乱步数: {scramble_steps}, 第 {iteration_cnt/1000:.2f}K 次")
             
             # 自我对弈生成数据
@@ -486,6 +504,9 @@ class MCTSAgent:
 
 
 class MCTSAgent_1 (MCTSAgent):
+    def __init__(self, m, n, num_simulations=100, exploration_weight=1):
+        print('** MCTSAgent_1 **')
+        super().__init__(m, n, num_simulations, exploration_weight)
     def select_child(self):
         # 添加一些随机性
         if random.random() < 1.1:  # 10%概率随机选择
@@ -576,3 +597,92 @@ class MCTSAgent_1 (MCTSAgent):
         # 选择访问次数最多的动作
         action = max(valid_children.keys(), key=lambda a: valid_children[a].visit_count)
         return action, root
+
+
+class MCTSAgent_2 (MCTSAgent):
+    def __init__(self, m, n, num_simulations=100, exploration_weight=1):
+        print('** MCTSAgent_2 **')
+        super().__init__(m, n, num_simulations, exploration_weight)
+
+    def pretrain(self,batch_size=32, 
+              pre_train_steps=500, loss_threshold=0.1):
+        # 1. 预训练阶段：生成打乱数据进行学习
+        print("开始预训练阶段...")
+        print(f'生成数据 {pre_train_steps}')
+        # pre_train_data = self.generate_pre_train_data(pre_train_steps)
+        pre_train_data = self.generate_pre_train_data(pre_train_steps,10)
+        
+        # 预训练直到损失低于阈值
+        pre_train_losses = []
+        current_loss = float('inf')
+        filter_loss = current_loss
+        frate = 0.9
+        pre_train_iter = 0
+
+        print('开始训练')
+        while filter_loss > loss_threshold and pre_train_iter<pre_train_steps*50:
+            if len(pre_train_data) < batch_size:
+                continue
+                
+            batch = random.sample(pre_train_data, batch_size)
+            states = np.array([data[0] for data in batch])
+            target_policies = np.array([data[1] for data in batch])
+            target_values = np.array([data[2] for data in batch])
+            
+            current_loss = self.puzzle_net.train(states, target_policies, target_values)
+            filter_loss = current_loss if filter_loss == float('inf') else filter_loss*frate + current_loss*(1-frate)
+            pre_train_losses.append(current_loss)
+            pre_train_iter += 1
+            
+            if pre_train_iter % 40 == 0:
+                print(f"预训练迭代 {pre_train_iter}, 损失: {current_loss:.4f} 平均损失: {filter_loss:.4f}")
+        
+        print(f"预训练完成，最终损失: {current_loss:.4f}")
+        return pre_train_data
+    def generate_pre_train_data(self,cnt = 100, setp=30):
+        """生成预训练数据，基于曼哈顿距离"""
+        pre_train_data = []
+        temp_env = MN_Puzzle(self.m, self.n)
+        action_names = ['up', 'down', 'left', 'right']
+        
+        # max_distance = 2 * (self.m + self.n - 2)  # 最大可能距离
+
+        # 计算曼哈顿距离作为价值目标
+        # manhattan_distance = self.calculate_manhattan_distance(state)
+        # value_target_1 = 1.0 - (manhattan_distance / max_distance)  # 曼哈顿距离 归一化到[0,1]
+        # value_target_2 = 1.0 - (_ / num_samples) # 步数
+        # value_target = 1 - 0.5 * (value_target_1 + value_target_2)/2
+        for i in range(cnt):
+            temp_env.reset()
+            for j in range(setp):
+                # 随机打乱
+                valid_actions  = temp_env.get_actions()
+                action = random.choice(valid_actions )
+                _, state = temp_env.execute_action(action)
+                
+                # 计算价值目标
+                value_target = 1.0 - 0.5 * (j / setp) # 步数
+                
+                action = temp_env.negative_action(action)
+                policy_target = np.zeros(4)
+                idx = action_names.index(action)
+                policy_target[idx] = 1.0
+                
+                pre_train_data.append((state, policy_target, value_target))
+        
+        return pre_train_data
+    
+    def calculate_manhattan_distance(self, state):
+        """计算当前状态的曼哈顿距离"""
+        total_distance = 0
+        for i in range(self.size):
+            if state[i] == self.size - 1:  # 空位
+                continue
+            
+            current_row, current_col = i // self.n, i % self.n
+            target_row, target_col = state[i] // self.n, state[i] % self.n
+            
+            total_distance += abs(current_row - target_row) + abs(current_col - target_col)
+        
+        return total_distance
+        

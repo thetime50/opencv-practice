@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from MCTSSliding import MCTSAgent,MCTSAgent_1
+from MCTSSliding import MCTSAgent,MCTSAgent_1,MCTSAgent_2
 
 def main():
     # 设置随机种子以确保可重复性
@@ -8,8 +8,9 @@ def main():
     tf.random.set_seed(42)
     
     # 创建3x3拼图代理
-    agent = MCTSAgent(3, 3, num_simulations=50)
+    # agent = MCTSAgent(3, 3, num_simulations=50)
     # agent = MCTSAgent_1(3, 3, num_simulations=50)
+    agent = MCTSAgent_2(3, 3, num_simulations=50)
 
     # # 检查是否有之前的训练状态可以加载
     # agent.load_model('model_iteration_3')
@@ -21,7 +22,7 @@ def main():
         new_losses = agent.train(
             num_iterations=100,
             num_self_play_games=10,
-            batch_size=32
+            batch_size=64
         )
         losses.extend(new_losses)
         
