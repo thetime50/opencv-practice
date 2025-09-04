@@ -82,12 +82,13 @@ class SlidingPuzzleEnv:
         self.state[idx], self.state[target] = self.state[target], self.state[idx]
 
     def step(self, action):
+        # 这里的评分加上gamma<1 让距离越远的分数越小，不要在远的地方刷分数
         legal_moves = self.get_moves()
         reward = -0.01
         done = False
         if action not in legal_moves:
-            # reward = -0.1
-            reward = - math.square(self.m+self.n)
+            reward = -1
+            # reward = - math.square(self.m+self.n)
         else:
             before_total_distance = self._calculate_total_distance(self.state)
             self.do_action(action)
@@ -95,7 +96,7 @@ class SlidingPuzzleEnv:
             # 计算所有滑块到正确位置的曼哈顿距离之和
             total_distance = self._calculate_total_distance(self.state)
             # 使用距离之和作为额外奖励（负奖励，因为距离越小越好）
-            if(before_total_distance>total_distance):
+            if(total_distance > before_total_distance):
                 reward = 0.06 # * before_total_distance-total_distance
             else:
                 reward = -0.03 # * before_total_distance-total_distance
@@ -113,7 +114,7 @@ class DQNAgent:
     def __init__(self, action_size,m,n):
         self.action_size = action_size
         self.memory = deque(maxlen=2000)
-        self.gamma = 0.99
+        self.gamma = 0.9 # 越外面分值越小，禁止在外面刷分
         # self.epsilon = 1.0
         # self.epsilon_decay = 0.995
         self.epsilon = 0.2
@@ -126,7 +127,7 @@ class DQNAgent:
         # self.optimizer = tf.keras.optimizers.Adam(1e-3)
         # 动态学习率 指数衰减
         lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-            initial_learning_rate=1e-3, decay_steps=32, decay_rate=0.995)
+            initial_learning_rate=8e-5, decay_steps=1, decay_rate=0.995)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
         # 或者使用余弦退火
         # lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
@@ -138,14 +139,19 @@ class DQNAgent:
     def _build_model(self):
         inputs = tf.keras.Input(shape=(self.m, self.n, self.size))
 
-        x = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(inputs)
+        x = tf.keras.layers.Conv2D(512, 3, activation='relu', padding='same')(inputs)
         x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+        x = tf.keras.layers.Conv2D(512, 3, activation='relu', padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+        x = tf.keras.layers.Conv2D(512, 3, activation='relu', padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.GlobalAveragePooling2D()(x)
-        x = tf.keras.layers.Dense(128, activation='relu')(x)
+        x = tf.keras.layers.Dense(8192, activation='relu')(x)
+        x = tf.keras.layers.Dropout(0.3)(x)
+        x = tf.keras.layers.Dense(4096, activation='relu')(x)
+        x = tf.keras.layers.Dropout(0.3)(x)
+        x = tf.keras.layers.Dense(1024, activation='relu')(x)
+        x = tf.keras.layers.Dropout(0.3)(x)
         outputs = tf.keras.layers.Dense(self.action_size, activation='linear')(x)
         model = tf.keras.Model(inputs, outputs)
         model.compile(optimizer=self.optimizer, loss='mse')
@@ -158,8 +164,9 @@ class DQNAgent:
         if np.random.rand() < self.epsilon:
             return random.choice(legal_moves)
         q = self.model.predict(state[np.newaxis,...], verbose=0)[0]
-        q_masked = [q[a] for a in legal_moves]
-        return legal_moves[np.argmax(q_masked)]
+        # q_masked = [q[a] for a in legal_moves]
+        # return legal_moves[np.argmax(q_masked)]
+        return np.argmax(q)
 
     def replay(self, batch_size=32):
         if len(self.memory) < batch_size: return
@@ -176,6 +183,14 @@ class DQNAgent:
             targets.append(q_current)
         self.model.fit(np.array(states), np.array(targets), epochs=1, verbose=0)
         if self.epsilon > self.epsilon_min: self.epsilon *= self.epsilon_decay
+
+    def test_memory(self, cnt):
+        test_list = random.sample(self.memory,cnt) if len(self.memory)>cnt else self.memory.copy()
+        success_cnt=0
+        for i,item in enumerate(test_list):
+            a = self.model.predict(item[0][np.newaxis],verbose=0)[0]
+            if(np.argmax(a) == item[1]and item[2]>0 or np.argmax(a) != item[1]and item[2]<0 ): success_cnt += 1
+        return success_cnt / cnt
 
 
 class SlidingPuzzleDetector:
@@ -328,7 +343,8 @@ if __name__ == '__main__':
         state = env.reset(scramble_steps)
         total_reward = 0
         action = None
-        for t in range(50):
+        solve_step = min(50,scramble_steps*5)
+        for t in range(solve_step):
             legal = env.get_moves()
             action = agent.act(state, legal)
             next_state, reward, done = env.step(action)
@@ -337,7 +353,7 @@ if __name__ == '__main__':
             total_reward += reward
             if done: break
         # for i in range(10):
-        agent.replay(batch_size=32)
+        agent.replay(batch_size=64)
         reward_list.append(total_reward)
 
         # ===== 实时更新绘图 =====
@@ -350,7 +366,8 @@ if __name__ == '__main__':
             agent.model.save(MODEL_FILE)
             detector = SlidingPuzzleDetector(model = tf.keras.models.clone_model(agent.model), **puzzle_size)
             success_rate = detector.test_performance(20,scramble_steps)
-            print(f"Episode {total_cnt} {e+1}/{episodes}, scramble: {scramble_steps}, success: {success_rate*100:.1f}%, Total Reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+            mem_rate = agent.test_memory(50)
+            print(f"Episode {total_cnt} {e+1}/{episodes}, scramble: {scramble_steps}, mem_rate: {mem_rate*100:.1f}%, success: {success_rate*100:.1f}%, Total Reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
             if(success_rate>=0.9):
                 e+=1
 
