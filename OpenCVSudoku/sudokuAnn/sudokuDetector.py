@@ -6,11 +6,13 @@ import cv2
 import os
 import re
 
+from const import SATASET_FILE,\
+    SATASET_FILE_IMG,\
+    SATASET_FILE_NPY,\
+    MODEL_TEMP_FILE,\
+    MODEL_TEMP1_FILE,\
+    MODEL_FILE
 
-SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
-SATASET_FILE_IMG = os.path.join(SATASET_FILE, 'img')
-MODEL_FILE = os.path.join(SATASET_FILE, 'sudoku.h5')
-SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'sudoku_dataset.npy')
 
 npy_set = None
 

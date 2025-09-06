@@ -4,18 +4,17 @@ from tensorflow.keras import layers
 import numpy as np
 import cv2
 import os
+from const import SATASET_FILE,\
+    SATASET_FILE_IMG,\
+    SATASET_FILE_NPY,\
+    D_MODEL_TEMP_FILE as MODEL_TEMP_FILE,\
+    D_MODEL_TEMP1_FILE as MODEL_TEMP1_FILE,\
+    D_MODEL_FILE as MODEL_FILE
 
 '''
 逻辑有问题不能运行
 regression_output  ouyput是长度32 y_train['keypoints'] = y_train_combined 长度是33
 '''
-
-SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
-SATASET_FILE_IMG = os.path.join(SATASET_FILE, 'img')
-SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'sudoku_dataset.npy')
-MODEL_TEMP_FILE = os.path.join(SATASET_FILE, 'd_sudoku_temp.h5')
-MODEL_TEMP1_FILE = os.path.join(SATASET_FILE, 'd_sudoku_temp_1.h5')
-MODEL_FILE = os.path.join(SATASET_FILE, 'd_sudoku.h5')
 
 
 # 设置日志级别

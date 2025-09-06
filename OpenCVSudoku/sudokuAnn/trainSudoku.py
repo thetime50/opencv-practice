@@ -3,14 +3,14 @@ import tensorflow as tf
 from tensorflow.keras import layers, models, losses, optimizers,regularizers
 from build_model import IMG_SIZE,BATCH_SIZE, build_model,build_model_d,\
     build_model_pre,build_model_pre1,build_model_pre2
+from const import SATASET_FILE,\
+    SATASET_FILE_IMG,\
+    SATASET_FILE_NPY,\
+    MODEL_TEMP_FILE,\
+    MODEL_TEMP1_FILE,\
+    MODEL_FILE
 
 print('启动')
-SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
-SATASET_FILE_IMG = os.path.join(SATASET_FILE, 'img')
-SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'sudoku_dataset.npy')
-MODEL_TEMP_FILE = os.path.join(SATASET_FILE, 'sudoku_temp.h5')
-MODEL_TEMP1_FILE = os.path.join(SATASET_FILE, 'sudoku_temp_1.h5')
-MODEL_FILE = os.path.join(SATASET_FILE, 'sudoku.h5')
 
 # --------------------------
 # 自定义损失：条件关键点损失
@@ -81,108 +81,130 @@ class ConditionalKeypointLoss2(tf.keras.losses.Loss):
 # 示例训练数据
 # --------------------------
 import numpy as np
-slice_dataset = lambda ds,lens:[_[:lens] for _ in ds]
 
-# 加载数据
-train_set, test_set = np.load(SATASET_FILE_NPY, allow_pickle=True)
+class SudokuTrainer:
+    def __init__(self, model):
+        self.model = model
+        self.loss_fn = ConditionalKeypointLoss()
+        # 固定学习率
+        # self.optimizer=tf.keras.optimizers.Adam(1e-4)
+        # 动态学习率 指数衰减
+        lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=1e-3, decay_steps=1000, decay_rate=0.88)
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+        # 或者使用余弦退火
+        # lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
+        #     initial_learning_rate=1e-3, decay_steps=1000
+        # )
+        # self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
-train_images, train_has, train_points = train_set
-test_images, test_has, test_points = slice_dataset(test_set,5000)
+        self.train_ds = np.empty([1])
+        self.test_ds = np.empty([1])
+        self.dataset_init()
+        
+        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            MODEL_TEMP_FILE,
+            save_weights_only=False, # True,
+            save_best_only=True
+        )
+        self.callbacks = [checkpoint_callback]
 
-# slice_repeat = lambda x,n : np.repeat(x[:n] , int(len(x)/n), axis=0)
+    def dataset_init(self,dataset_path = SATASET_FILE_NPY):
+        slice_dataset = lambda ds,lens:[_[:lens] for _ in ds]
 
-# train_images = slice_repeat(train_images,100)
-# train_has = slice_repeat(train_has,100)
-# train_points = slice_repeat(train_points,100)
+        # 加载数据
+        train_set, test_set = np.load(dataset_path, allow_pickle=True)
 
-print("Train:", len(train_images), "Test:", len(test_images))
+        train_images, train_has, train_points = train_set
+        test_images, test_has, test_points = slice_dataset(test_set,5000)
 
-# # 数据处理函数
-def parse_fn(img_path, has_sudoku, points):
-    # 读取图片 回调里会变为张量
-    img = tf.io.read_file(tf.strings.join([SATASET_FILE_IMG, img_path], separator=os.sep))
-    img = tf.image.decode_jpeg(img, channels=1)  # 灰度图
-    img = tf.image.convert_image_dtype(img, tf.float32)  # [0,1]
+        # slice_repeat = lambda x,n : np.repeat(x[:n] , int(len(x)/n), axis=0)
 
-    img = tf.image.resize(img, (IMG_SIZE, IMG_SIZE))
+        # train_images = slice_repeat(train_images,100)
+        # train_has = slice_repeat(train_has,100)
+        # train_points = slice_repeat(train_points,100)
 
-    # y_true = [has_sudoku, 32个点]
-    has_sudoku = tf.cast(has_sudoku, tf.float32)
-    # points = tf.reshape(points, [-1])  # (32,)
-    points = tf.cast(points, tf.float32)
-    points = tf.reshape(points, [-1]) / IMG_SIZE
-    y = tf.concat([[has_sudoku], points], axis=0)  # (33,)
+        print("Train:", len(train_images), "Test:", len(test_images))
+
+        # # 数据处理函数
+        def parse_fn(img_path, has_sudoku, points):
+            # 读取图片 回调里会变为张量
+            img = tf.io.read_file(tf.strings.join([SATASET_FILE_IMG, img_path], separator=os.sep))
+            img = tf.image.decode_jpeg(img, channels=1)  # 灰度图
+            img = tf.image.convert_image_dtype(img, tf.float32)  # [0,1]
+
+            img = tf.image.resize(img, (IMG_SIZE, IMG_SIZE))
+
+            # y_true = [has_sudoku, 32个点]
+            has_sudoku = tf.cast(has_sudoku, tf.float32)
+            # points = tf.reshape(points, [-1])  # (32,)
+            points = tf.cast(points, tf.float32)
+            points = tf.reshape(points, [-1]) / IMG_SIZE
+            y = tf.concat([[has_sudoku], points], axis=0)  # (33,)
+            
+            return img, y
+
+
+        # 训练集
+        train_ds = tf.data.Dataset.from_tensor_slices((train_images, train_has, train_points))
+        train_ds = train_ds.shuffle(10000).map(parse_fn, num_parallel_calls=tf.data.AUTOTUNE)
+        self.train_ds = train_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+
+        # 测试集
+        test_ds = tf.data.Dataset.from_tensor_slices((test_images, test_has, test_points))
+        test_ds = test_ds.map(parse_fn, num_parallel_calls=tf.data.AUTOTUNE)
+        self.test_ds = test_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
     
-    return img, y
+    def before_train(self):
+        self.model.compile(
+            optimizer=self.optimizer,
+            loss=self.loss_fn,
+            metrics=["accuracy"]
+        )
+        # model.summary()
+
+        # 加载模型和优化器状态
+        if os.path.exists(MODEL_TEMP_FILE):
+            print("加载上次中断的模型")
+            self.model.load_weights(MODEL_TEMP_FILE)
+    
+    def after_train(self):
+        if os.path.exists(MODEL_TEMP1_FILE):
+            os.remove(MODEL_TEMP1_FILE)
+        if os.path.exists(MODEL_TEMP_FILE):
+            os.rename(MODEL_TEMP_FILE, MODEL_TEMP1_FILE)
+        print('结束')
+
+    def train(self,cnt=5,epochs=20):
+        
+        self.before_train()
+        # 训练
+        print('开始训练')
+        for i in range(cnt):
+            self.model.fit(
+                self.train_ds,
+                validation_data=self.test_ds,
+                epochs=epochs,
+                callbacks=self.callbacks
+            )
+            print("保存模型")
+            self.model.save(MODEL_FILE)
+        self.after_train()
+
+if __name__ == '__main__':
+
+    # --------------------------
+    # 模型编译
+    # --------------------------
+    # model = build_model()
+    # model = build_model_d()
+    # model = build_model_pre()
+    # model = build_model_pre1()
+    model = build_model_pre2()
+    trainer = SudokuTrainer(model)
+    trainer.train(1)
 
 
-# 训练集
-train_ds = tf.data.Dataset.from_tensor_slices((train_images, train_has, train_points))
-train_ds = train_ds.shuffle(10000).map(parse_fn, num_parallel_calls=tf.data.AUTOTUNE)
-train_ds = train_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-
-# 测试集
-test_ds = tf.data.Dataset.from_tensor_slices((test_images, test_has, test_points))
-test_ds = test_ds.map(parse_fn, num_parallel_calls=tf.data.AUTOTUNE)
-test_ds = test_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-
-
-# --------------------------
-# 模型编译
-# --------------------------
-# model = build_model()
-# model = build_model_d()
-# model = build_model_pre()
-# model = build_model_pre1()
-model = build_model_pre2()
-
-# 固定学习率
-# optimizer=tf.keras.optimizers.Adam(1e-4)
-# 动态学习率 指数衰减
-lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate=1e-3, decay_steps=1000, decay_rate=0.88)
-optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-# 或者使用余弦退火
-# lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
-#     initial_learning_rate=1e-3, decay_steps=1000
-# )
-# optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-
-model.compile(
-    optimizer=optimizer,
-    loss=ConditionalKeypointLoss(),
-    metrics=["accuracy"]
-)
-# model.summary()
-
-
-# 加载模型和优化器状态
-if os.path.exists(MODEL_TEMP_FILE):
-    print("加载上次中断的模型")
-    model.load_weights(MODEL_TEMP_FILE)
-
-# 训练
-print('开始训练')
-checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-    MODEL_TEMP_FILE,
-    save_weights_only=False, # True,
-    save_best_only=True
-)
-for i in range(5):
-    model.fit(
-        train_ds,
-        validation_data=test_ds,
-        epochs=20,
-        callbacks=[checkpoint_callback]
-    )
-    print("保存模型")
-    model.save(MODEL_FILE)
-
-if os.path.exists(MODEL_TEMP1_FILE):
-    os.remove(MODEL_TEMP1_FILE)
-if os.path.exists(MODEL_TEMP_FILE):
-    os.rename(MODEL_TEMP_FILE, MODEL_TEMP1_FILE)
-print('结束')
 # --------------------------
 # 推理
 # --------------------------

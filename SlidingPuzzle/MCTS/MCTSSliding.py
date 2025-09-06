@@ -299,7 +299,8 @@ class MCTSAgent:
         for node in reversed(search_path):
             node.visit_count += 1
             node.total_value += value
-            value = -value  # 交替视角
+            # 在数码问题里不交替可以让训练从6步进入7步
+            # value = -value  # 交替视角 
     
     def self_play(self, num_games=1, scramble_steps=0, max_moves = 150):
         training_data = []

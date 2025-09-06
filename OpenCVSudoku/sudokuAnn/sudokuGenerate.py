@@ -8,14 +8,16 @@ import cv2
 import numpy as np
 import sys
 from PIL import Image
+from const import SATASET_FILE,\
+    SATASET_FILE_IMG,\
+    SATASET_FILE_NPY,\
+    MODEL_TEMP_FILE,\
+    MODEL_TEMP1_FILE,\
+    MODEL_FILE
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 print("启动")
-
-SATASET_FILE = os.path.join(os.path.dirname(__file__), 'dataset')
-SATASET_FILE_IMG = os.path.join(SATASET_FILE, 'img')
-SATASET_FILE_NPY = os.path.join(SATASET_FILE, 'sudoku_dataset.npy')
 
 
 def image_generator(path = './img/bg',width=384,height=384, shuffle=True):
