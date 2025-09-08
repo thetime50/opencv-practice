@@ -63,6 +63,43 @@ class SlidingPuzzleEnv:
             distance = abs(current_row - correct_row) + abs(current_col - correct_col)
             total_distance += distance
         return total_distance
+    def adjacent_distance_max(self):
+        m=self.m
+        n=self.n
+        return (m*(n-1)+n*(m-1))*((m-1) + (n-1) - 1)
+    def calculate_adjacent_distance(self, state):
+        """
+        计算所有原本相邻方块（横向 & 纵向）的曼哈顿间距总和
+        忽略空格
+        """
+        total_distance = 0 
+        # 数字 → 当前位置索引
+        pos = [0] * self.size
+        for idx, tile in enumerate(state):
+            pos[tile] = idx
+
+        # 横向相邻对
+        for row in range(self.m):
+            for col in range(self.n - 1):
+                a = row * self.n + col
+                b = a + 1
+                if a != self.size - 1 and b != self.size - 1:
+                    ax, ay = divmod(pos[a], self.n)
+                    bx, by = divmod(pos[b], self.n)
+                    total_distance += abs(ax - bx) + abs(ay - by) -1
+
+        # 纵向相邻对
+        for row in range(self.m - 1):
+            for col in range(self.n):
+                a = row * self.n + col
+                b = a + self.n
+                if a != self.size - 1 and b != self.size - 1:
+                    ax, ay = divmod(pos[a], self.n)
+                    bx, by = divmod(pos[b], self.n)
+                    total_distance += abs(ax - bx) + abs(ay - by) -1
+
+        return total_distance
+
     def negative_action(self,action):
         m = {
             0:1,
@@ -90,11 +127,15 @@ class SlidingPuzzleEnv:
             reward = -1
             # reward = - math.square(self.m+self.n)
         else:
+            
+            adjacent_max = self.adjacent_distance_max()
             before_total_distance = self._calculate_total_distance(self.state)
+            # before_adjacent_distance = self.calculate_adjacent_distance(self.state)/adjacent_max
             self.do_action(action)
 
             # 计算所有滑块到正确位置的曼哈顿距离之和
             total_distance = self._calculate_total_distance(self.state)
+            # adjacent_distance = self.calculate_adjacent_distance(self.state)/adjacent_max
             # 使用距离之和作为额外奖励（负奖励，因为距离越小越好）
             if(total_distance > before_total_distance):
                 reward = 0.06 # * before_total_distance-total_distance
@@ -102,6 +143,10 @@ class SlidingPuzzleEnv:
                 reward = -0.03 # * before_total_distance-total_distance
             # distance_reward = -0.01 * total_distance  # 缩放因子可根据需要调整
             # reward = distance_reward
+            # if(adjacent_distance > before_adjacent_distance):
+            #     reward = 0.02 # * before_total_distance-total_distance
+            # else:
+            #     reward = -0.01 # * before_total_distance-total_distance
 
             if self.state == list(range(self.size)):
                 reward = 1.0

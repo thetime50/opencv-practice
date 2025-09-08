@@ -650,13 +650,7 @@ class MCTSAgent_2 (MCTSAgent):
         temp_env = MN_Puzzle(self.m, self.n)
         action_names = ['up', 'down', 'left', 'right']
         
-        # max_distance = 2 * (self.m + self.n - 2)  # 最大可能距离
 
-        # 计算曼哈顿距离作为价值目标
-        # manhattan_distance = self.calculate_manhattan_distance(state)
-        # value_target_1 = 1.0 - (manhattan_distance / max_distance)  # 曼哈顿距离 归一化到[0,1]
-        # value_target_2 = 1.0 - (_ / num_samples) # 步数
-        # value_target = 1 - 0.5 * (value_target_1 + value_target_2)/2
         for i in range(cnt):
             temp_env.reset()
             action = None
@@ -668,6 +662,13 @@ class MCTSAgent_2 (MCTSAgent):
                 
                 # 计算价值目标
                 value_target = 1.0 - 0.5 * (j / setp) # 步数
+                # # 计算曼哈顿距离作为价值目标
+                # max_distance = 2 * (self.m + self.n - 2)  # 最大可能距离
+                # manhattan_distance = 1 - self.calculate_manhattan_distance(state)/ max_distance
+                # adjacent_max = self.adjacent_distance_max()
+                # adjacent_distance = 1 - self.calculate_adjacent_distance(state)/adjacent_max
+
+                # value_target = 1 - (manhattan_distance + adjacent_distance)/2
                 
                 action = temp_env.negative_action(action)
                 policy_target = np.zeros(4)
@@ -691,4 +692,49 @@ class MCTSAgent_2 (MCTSAgent):
             total_distance += abs(current_row - target_row) + abs(current_col - target_col)
         
         return total_distance
-        
+    def adjacent_distance_max(self):
+        m=self.m
+        n=self.n
+        return (m*(n-1)+n*(m-1))*((m-1) + (n-1) - 1)
+
+    def calculate_adjacent_distance(self, state):
+        """
+        计算所有原本相邻方块（横向 & 纵向）的曼哈顿间距总和
+        忽略空格
+        """
+        total_distance = 0 
+        # 数字 → 当前位置索引
+        pos = [0] * self.size
+        for idx, tile in enumerate(state):
+            pos[tile] = idx
+
+        # 横向相邻对
+        for row in range(self.m):
+            for col in range(self.n - 1):
+                a = row * self.n + col
+                b = a + 1
+                if a != self.size - 1 and b != self.size - 1:
+                    ax, ay = divmod(pos[a], self.n)
+                    bx, by = divmod(pos[b], self.n)
+                    total_distance += abs(ax - bx) + abs(ay - by) -1
+
+        # 纵向相邻对
+        for row in range(self.m - 1):
+            for col in range(self.n):
+                a = row * self.n + col
+                b = a + self.n
+                if a != self.size - 1 and b != self.size - 1:
+                    ax, ay = divmod(pos[a], self.n)
+                    bx, by = divmod(pos[b], self.n)
+                    total_distance += abs(ax - bx) + abs(ay - by) -1
+
+        return total_distance
+
+if __name__ == '__main__':
+    agent = MCTSAgent_2(3, 3, num_simulations=50)
+    print('max',agent.adjacent_distance_max() )
+    d1 = agent.calculate_adjacent_distance(np.array([0,1,2, 3,4,5, 6,7,8],dtype=np.int16))
+    d2 = agent.calculate_adjacent_distance(np.array([2,1,0, 3,4,5, 6,7,8],dtype=np.int16))
+    d3 = agent.calculate_adjacent_distance(np.array([0,1,2, 3,4,5, 6,7,8],dtype=np.int16))
+    d4 = agent.calculate_adjacent_distance(np.array([0,1,2, 3,4,5, 6,7,8],dtype=np.int16))
+    print(f'd1 {d1},d2 {d2},d3 {d3},d4 {d4},')
