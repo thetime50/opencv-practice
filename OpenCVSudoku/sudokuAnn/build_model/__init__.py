@@ -6,3 +6,4 @@ from .build_model_att2 import build_light_texture_locator,\
     build_mini_texture_locator,\
     build_light_residual_locator
 from .build_model_heat import SoftArgMax2D, build_heatmap_model, HEATMAP_STRIDE, NUM_KEYPOINTS
+from .build_model_pre_heat import build_heatmap_model_pre

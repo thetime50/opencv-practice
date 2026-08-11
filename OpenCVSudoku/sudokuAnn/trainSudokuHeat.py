@@ -6,6 +6,7 @@ from build_model import (
     IMG_SIZE,
     SoftArgMax2D,
     build_heatmap_model,
+    build_heatmap_model_pre,
     HEATMAP_STRIDE,
     NUM_KEYPOINTS,
 )
@@ -20,6 +21,8 @@ from const import (
 print('启动')
 
 HEATMAP_SIGMA = 2.0
+KEYPOINTS_LOSS_WEIGHT = 50.0  # 加大坐标权重（原 10）
+NEAR_PEAK_RATIO = 0.25        # 峰附近：|dx|<W/4 且 |dy|<H/4
 
 
 def pad_to_multiple(img, stride=HEATMAP_STRIDE):
@@ -57,6 +60,64 @@ def make_gaussian_heatmaps(points_norm, hm_h, hm_w, has_sudoku, sigma=HEATMAP_SI
     return heat
 
 
+class NearPeakHeatmapMSE(tf.keras.losses.Loss):
+    """仅在 GT 峰附近（|dx|<W/4 且 |dy|<H/4）计算热力图 MSE。"""
+
+    def __init__(self, ratio=NEAR_PEAK_RATIO, name='near_peak_heatmap_mse'):
+        super().__init__(name=name)
+        self.ratio = ratio
+
+    def call(self, y_true, y_pred):
+        # (B,H,W,K)
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.cast(y_pred, tf.float32)
+        h = tf.shape(y_true)[1]
+        w = tf.shape(y_true)[2]
+        k = tf.shape(y_true)[3]
+        hf = tf.cast(h, tf.float32)
+        wf = tf.cast(w, tf.float32)
+
+        flat = tf.reshape(y_true, (-1, h * w, k))
+        peak_idx = tf.argmax(flat, axis=1, output_type=tf.int32)  # (B,K)
+        py = tf.cast(peak_idx // w, tf.float32)
+        px = tf.cast(peak_idx % w, tf.float32)
+
+        yy = tf.cast(tf.range(h), tf.float32)[:, tf.newaxis]  # (H,1)
+        xx = tf.cast(tf.range(w), tf.float32)[tf.newaxis, :]  # (1,W)
+        dx = tf.abs(xx[tf.newaxis, :, :, tf.newaxis] - px[:, tf.newaxis, tf.newaxis, :])
+        dy = tf.abs(yy[tf.newaxis, :, :, tf.newaxis] - py[:, tf.newaxis, tf.newaxis, :])
+        mask = tf.cast(
+            (dx < wf * self.ratio) & (dy < hf * self.ratio),
+            tf.float32,
+        )
+
+        sq = tf.square(y_true - y_pred) * mask
+        denom = tf.reduce_sum(mask, axis=[1, 2, 3]) + 1e-6
+        return tf.reduce_sum(sq, axis=[1, 2, 3]) / denom
+
+
+class NearPeakKeypointMSE(tf.keras.losses.Loss):
+    """
+    坐标损失：以 GT 为峰，仅当 |dx|<ratio 且 |dy|<ratio（相对整图宽高）时计入该点；
+    远点用 far_weight，避免训练初期梯度全无。
+    """
+
+    def __init__(self, ratio=NEAR_PEAK_RATIO, far_weight=0.1, name='near_peak_keypoint_mse'):
+        super().__init__(name=name)
+        self.ratio = ratio
+        self.far_weight = far_weight
+
+    def call(self, y_true, y_pred):
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.cast(y_pred, tf.float32)
+        dx = tf.abs(y_true[..., 0] - y_pred[..., 0])
+        dy = tf.abs(y_true[..., 1] - y_pred[..., 1])
+        near = tf.cast((dx < self.ratio) & (dy < self.ratio), tf.float32)
+        w = near * 1.0 + (1.0 - near) * self.far_weight
+        sq = tf.reduce_mean(tf.square(y_true - y_pred), axis=-1)
+        return tf.reduce_mean(sq * w, axis=-1)
+
+
 class SudokuHeatTrainer:
     def __init__(self, model):
         self.model = model
@@ -84,6 +145,11 @@ class SudokuHeatTrainer:
 
         print('Train:', len(train_images), 'Test:', len(test_images))
 
+        # slice_repeat = lambda x,n : np.repeat(x[:n] , int(len(x)/n), axis=0)
+
+        # train_images = slice_repeat(train_images,100)
+        # train_has = slice_repeat(train_has,100)
+        # train_points = slice_repeat(train_points,100)
         def parse_fn(img_path, has_sudoku, points):
             img = tf.io.read_file(tf.strings.join([SATASET_FILE_IMG, img_path], separator=os.sep))
             img = tf.io.decode_image(img, channels=1, expand_animations=False)
@@ -115,8 +181,11 @@ class SudokuHeatTrainer:
                 'keypoints': points_norm,
             }
             # has_sudoku=0 时屏蔽热力图与坐标损失
+            # 自定义 loss 已 reduce 到 (B,)，sample_weight 用每样本标量
             sw = {
                 'has_sudoku': tf.constant(1.0),
+                # 'heatmaps': tf.reshape(has_sudoku, (1, 1)),
+                # 'keypoints': tf.reshape(has_sudoku, (1,)),
                 'heatmaps': has_sudoku,
                 'keypoints': has_sudoku,
             }
@@ -139,6 +208,8 @@ class SudokuHeatTrainer:
                     },
                     {
                         'has_sudoku': [],
+                        # 'heatmaps': [1, 1],
+                        # 'keypoints': [1],
                         'heatmaps': [],
                         'keypoints': [],
                     },
@@ -167,13 +238,15 @@ class SudokuHeatTrainer:
             optimizer=self.optimizer,
             loss={
                 'has_sudoku': 'binary_crossentropy',
-                'heatmaps': 'mse',
-                'keypoints': 'mse',
+                # 'heatmaps': 'mse',
+                # 'keypoints': 'mse',
+                'heatmaps': NearPeakHeatmapMSE(),
+                'keypoints': NearPeakKeypointMSE(),
             },
             loss_weights={
                 'has_sudoku': 1.0,
                 'heatmaps': 1.0,
-                'keypoints': 10.0,
+                'keypoints': KEYPOINTS_LOSS_WEIGHT, # （原 10）
             },
             metrics={
                 'has_sudoku': ['accuracy'],
@@ -207,7 +280,11 @@ class SudokuHeatTrainer:
 
 
 if __name__ == '__main__':
-    model = build_heatmap_model()
+    # model = build_heatmap_model()
+    model = build_heatmap_model_pre()
     model.summary()
+    trainable = sum(int(tf.keras.backend.count_params(w)) for w in model.trainable_weights)
+    total = model.count_params()
+    print(f'可训练参数: {trainable:,} / 总参数: {total:,}')
     trainer = SudokuHeatTrainer(model)
     trainer.train(1)
