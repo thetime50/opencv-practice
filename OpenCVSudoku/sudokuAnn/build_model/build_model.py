@@ -38,7 +38,7 @@ def build_model(inputs = None):
     x = residualConnection(32,inputs)
     x = residualConnection(64,x)
     x = residualConnection(128,x)
-    # x = residualConnection(128,x,False) # 加了一层 卡在loss: 5.4433 - val_loss: 5.2975
+    x = residualConnection(128,x,False) # 加了一层 卡在loss: 5.4433 - val_loss: 5.2975
 
     # 全局池化
     x = layers.GlobalAveragePooling2D()(x)

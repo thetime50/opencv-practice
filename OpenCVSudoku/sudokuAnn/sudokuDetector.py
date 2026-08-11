@@ -11,7 +11,9 @@ from const import SATASET_FILE,\
     SATASET_FILE_NPY,\
     MODEL_TEMP_FILE,\
     MODEL_TEMP1_FILE,\
-    MODEL_FILE
+    MODEL_FILE,\
+    HEAT_MODEL_FILE
+from build_model import SoftArgMax2D, HEATMAP_STRIDE
 
 
 npy_set = None
@@ -41,7 +43,9 @@ class SudokuDetector:
     
     def __init__(self, model_path=None):
         if model_path and os.path.exists(model_path):
-            self.model = keras.models.load_model(model_path, compile=False)
+            self.model = keras.models.load_model(
+                model_path, compile=False,
+                custom_objects={'SoftArgMax2D': SoftArgMax2D})
         else:
             raise Exception('加载模型错误')
     
@@ -75,12 +79,22 @@ class SudokuDetector:
         # input_image = cv2.resize(original_image, (256, 256))
         input_image =  original_image
         input_image = input_image / 255.0
+        if "heat" in MODEL_FILE:
+            # 热力图模型要求边长为 HEATMAP_STRIDE 倍数
+            nh = ((original_h + HEATMAP_STRIDE - 1) // HEATMAP_STRIDE) * HEATMAP_STRIDE
+            nw = ((original_w + HEATMAP_STRIDE - 1) // HEATMAP_STRIDE) * HEATMAP_STRIDE
+            if nh != original_h or nw != original_w:
+                input_image = np.pad(input_image, ((0, nh - original_h), (0, nw - original_w)), mode='constant')
         input_batch = np.expand_dims(input_image, axis=0)
         
         # 预测
         predict_res = self.model.predict(input_batch, verbose=0)
-        has_sudoku_pred = predict_res[0][0]
-        keypoints_pred = predict_res[0][1:]
+        if isinstance(predict_res, dict):
+            has_sudoku_pred = float(predict_res['has_sudoku'][0][0])
+            keypoints_pred = predict_res['keypoints'][0].reshape(16, 2)
+        else:
+            has_sudoku_pred = predict_res[0][0]
+            keypoints_pred = predict_res[0][1:].reshape(16, 2)
         
         # 处理输出
         has_sudoku_prob = has_sudoku_pred
@@ -88,7 +102,7 @@ class SudokuDetector:
         
         # 转换关键点坐标到原始尺寸
         if has_sudoku:
-            keypoints = keypoints_pred.reshape(16, 2)  # 16个点，每个点(x,y)
+            keypoints = keypoints_pred.copy()
             keypoints[:, 0] *= original_w  # x坐标
             keypoints[:, 1] *= original_h  # y坐标
             keypoints = keypoints.astype(int)
@@ -99,7 +113,7 @@ class SudokuDetector:
             'has_sudoku': has_sudoku,
             'confidence': has_sudoku_prob,
             'keypoints': keypoints,
-            'keypoints_normalized': keypoints_pred[0].tolist() if has_sudoku else None
+            'keypoints_normalized': keypoints_pred.tolist() if has_sudoku else None
         }
     
     def visualize_result(self, image, result, output_path=None):
